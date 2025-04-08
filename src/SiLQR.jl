@@ -2,6 +2,7 @@ module SiLQR
 
 using LinearAlgebra
 using ForwardDiff
+using DiffResults
 using HybridRobotDynamics
 
 include("utils.jl")

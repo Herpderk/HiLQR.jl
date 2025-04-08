@@ -42,22 +42,34 @@ end
 Contains ranges of indices for getting instances of x, u, or Δt given the [x, u, Δt] order of decision variables.
 """
 struct PrimalIndices
+    dims::PrimalDimensions
     x::Vector{UnitRange{Int}}
     u::Vector{UnitRange{Int}}
     Δt::Union{Nothing, Vector{UnitRange{Int}}}
-    function PrimalIndices(
-        dims::PrimalDimensions
-    )::PrimalIndices
-        x_idx = get_primal_indices(dims, dims.N, 0, 0)
-        u_idx = get_primal_indices(dims, dims.N-1, dims.nx, dims.nu)
-        if dims.nt == 1
-            Δt_idx = get_primal_indices(
-                dims, dims.N-1, dims.nx+dims.nu, dims.nu+dims.nt)
-        elseif dims.nt == 0
-            Δt_idx = nothing
-        end
-        return new(x_idx, u_idx, Δt_idx)
+end
+
+function PrimalIndices(
+    dims::PrimalDimensions
+)::PrimalIndices
+    x_idx = get_primal_indices(dims, dims.N, 0, 0)
+    u_idx = get_primal_indices(dims, dims.N-1, dims.nx, dims.nu)
+    if dims.nt == 1
+        Δt_idx = get_primal_indices(
+            dims, dims.N-1, dims.nx+dims.nu, dims.nu+dims.nt)
+    elseif dims.nt == 0
+        Δt_idx = nothing
     end
+    return new(dims, x_idx, u_idx, Δt_idx)
+end
+
+function PrimalIndices(
+    N::Int,
+    nx::Int,
+    nu::Int,
+    nt::Int
+)::PrimalIndices
+    dims = PrimalDimensions(N, nx, nu, nt)
+    return PrimalIndices(dims)
 end
 
 """
