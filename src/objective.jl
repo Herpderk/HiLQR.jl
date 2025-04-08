@@ -48,7 +48,24 @@ end
 
 """
 """
-function expand_cost!(
+function expand_terminal_cost!(
+    Jxx_result::DiffResults.DiffResult,
+    J::AbstractFloat,
+    Jx::Vector{<:AbstractFloat},
+    Jxx::Matrix{<:AbstractFloat},
+    cost::TrajectoryCost,
+    xerr::Vector{<:AbstractFloat}
+)::Nothing
+    Jxx_result = ForwardDiff.hessian!(Jxx_result, cost.terminal, xerr)
+    J = DiffResults.value(Jxx_result)
+    Jx = DiffResults.gradient(Jxx_result)
+    Jxx = DiffResults.hessian(Jxx_result)
+    return nothing
+end
+
+"""
+"""
+function expand_stage_cost!(
     Jxx_result::DiffResults.DiffResult,
     Juu_result::DiffResults.DiffResult,
     J::AbstractFloat,
@@ -56,8 +73,9 @@ function expand_cost!(
     Ju::Vector{<:AbstractFloat},
     Jxx::Matrix{<:AbstractFloat},
     Juu::Matrix{<:AbstractFloat},
+    cost::TrajectoryCost,
     xerr::Vector{<:AbstractFloat},
-    uerr::Vector{<:AbstractFloat}
+    uerr::Vector{<:AbstractFloat},
 )::Nothing
     Jxx_result = ForwardDiff.hessian!(
         Jxx_result, δx -> cost.stage(δx, uerr), xerr
@@ -71,75 +89,4 @@ function expand_cost!(
     Jxx = DiffResults.hessian(Jxx_result)
     Juu = DiffResults.hessian(Juu_result)
     return nothing
-end
-
-"""
-"""
-function expand_terminal_cost(
-    cost::TrajectoryCost,
-    yref::Vector{<:AbstractFloat},
-    y::Vector{<:AbstractFloat}
-)::NamedTuple{
-    AbstractFloat,
-    Vector{<:AbstractFloat},
-    Vector{<:AbstractFloat},
-    Matrix{<:AbstractFloat},
-    Matrix{<:AbstractFloat}
-}
-    nx = cost.idx.dims.nx
-    nu = cost.idx.dims.nu
-
-    Jxx_result = DiffResults.HessianResult(zeros(eltype(y), nx))
-    Juu_result = DiffResults.HessianResult(zeros(eltype(y), nu))
-
-    J = zero(eltype(y))
-    Jx = zeros(eltype(y), nx)
-    Ju = zeros(eltype(y), nu)
-    Jxx = zeros(eltype(y), nx, nx)
-    Juu = zeros(eltype(y), nu, nu)
-
-    xerr = y[cost.idx.x[end]] - yref[cost.idx.x[end]]
-    uerr = y[cost.idx.u[end]] - yref[cost.idx.u[end]]
-
-    expand_cost!(Jxx_result, Juu_result, J, Jx, Ju, Jxx, Juu, xerr, uerr)
-    return(J=J, Jx=Jx, Ju=Ju, Jxx=Jxx, Juu=Juu)
-end
-
-"""
-"""
-function expand_stage_costs(
-    cost::TrajectoryCost,
-    yref::Vector{<:AbstractFloat},
-    y::Vector{<:AbstractFloat},
-)::NamedTuple{
-    Vector{<:AbstractFloat},
-    Vector{<:Vector{<:AbstractFloat}},
-    Vector{<:Vector{<:AbstractFloat}},
-    Vector{<:Matrix{<:AbstractFloat}},
-    Vector{<:Matrix{<:AbstractFloat}}
-}
-    N = cost.idx.dims.N
-    nx = cost.idx.dims.nx
-    nu = cost.idx.dims.nu
-
-    Jxx_result = DiffResults.HessianResult(zeros(eltype(y), nx))
-    Juu_result = DiffResults.HessianResult(zeros(eltype(y), nu))
-
-    Js = zeros(eltype(y), N-1)
-    Jxs = [zeros(eltype(y), nx) for k = 1:(N-1)]
-    Jus = [zeros(eltype(y), nu) for k = 1:(N-1)]
-    Jxxs = [zeros(eltype(y), nx,nx) for k = 1:(N-1)]
-    Juus = [zeros(eltype(y), nu,nu) for k = 1:(N-1)]
-
-    @simd for k = 1:(N-1)
-        xerr = y[cost.idx.x[k]] - yref[cost.idx.x[k]]
-        uerr = y[cost.idx.u[k]] - yref[cost.idx.u[k]]
-        expand_cost!(
-            Jxx_result, Juu_result,
-            Js[k], Jxs[k], Jus[k], Jxxs[k], Juus[k],
-            xerr, uerr
-        )
-    end
-
-    return (Js=Js, Jxs=Jxs, Jus=Jus, Jxxs=Jxxs, Juus=Juus)
 end
