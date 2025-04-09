@@ -16,8 +16,8 @@ end
 """
 function forward_pass!(
     fwd::ForwardTerms,
-    params::ProblemParameters,
-    bwd::BackwardTerms;
+    bwd::BackwardTerms,
+    params::ProblemParameters;
     max_ls_iter::Int = 10
 )::Nothing
 end
@@ -26,13 +26,14 @@ end
 """
 function backward_pass!(
     bwd::BackwardTerms,
+    fwd::ForwardTerms,
     Jexp::CostExpansion,
     Qexp::StateActionExpansion,
     params::ProblemParameters,
-    fwd::ForwardTerms,
     #sequence::Vector{TransitionTiming}, # TODO
 )::Nothing
     xerr = fwd.xs[end] - params.xrefs[end]
+    uerr = zeros(params.system.nu)
     expand_terminal_cost!(Jexp, params.cost, xerr)
     for k = (params.N-1) : -1 : 1
         xerr = fwd.xs[k] - params.xrefs[k]
@@ -127,8 +128,8 @@ end
 """
 function nonlinear_rollout!(
     fwd::ForwardTerms,
-    params::ProblemParameters,
-    bwd::BackwardTerms
+    bwd::BackwardTerms,
+    params::ProblemParameters
 )::Nothing
     fwd.xs[1] = params.x0
     mI = system.modes[params.mI]
