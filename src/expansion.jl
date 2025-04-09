@@ -59,7 +59,7 @@ end
 
 """
 """
-mutable struct StateActionExpansion
+mutable struct ActionValueExpansion
     A::Matrix{Float64}
     B::Matrix{Float64}
     V̂x::Vector{Float64}
@@ -71,10 +71,10 @@ mutable struct StateActionExpansion
     Quu::Matrix{Float64}
     Qxu::Matrix{Float64}
     Qux::Matrix{Float64}
-    function StateActionExpansion(
+    function ActionValueExpansion(
         nx::Int,
         nu::Int
-    )::StateActionExpansion
+    )::ActionValueExpansion
         A = zeros(nx, nx)
         B = zeros(nx, nu)
         V̂x = zeros(nx)
@@ -93,7 +93,7 @@ end
 """
 """
 function expand_Q!(
-    Qexp::StateActionExpansion,
+    Qexp::ActionValueExpansion,
     Jexp::CostExpansion,
     f̂::Vector{Float64}
 )::Nothing
@@ -110,7 +110,7 @@ end
 """
 """
 function expand_V!(
-    Qexp::StateActionExpansion,
+    Qexp::ActionValueExpansion,
     K::Matrix{Float64},
     d::Vector{Float64}
 )::Nothing
