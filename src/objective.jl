@@ -17,7 +17,7 @@ struct TrajectoryCost
 
         annotated_terminal_cost(
             x::Vector{<:DiffFloat64}
-        ) = terminal_cost(x, u)::DiffFloat64
+        ) = terminal_cost(x)::DiffFloat64
 
         return new(annotated_stage_cost, annotated_terminal_cost)
     end

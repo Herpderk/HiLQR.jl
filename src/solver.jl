@@ -2,28 +2,28 @@
 """
 mutable struct ProblemParameters
     system::HybridSystem
-    integrator::ExplicitIntegrator
     cost::TrajectoryCost
+    integrator::ExplicitIntegrator
+    N::Int
+    Δt::Float64
     xrefs::Vector{Vector{Float64}}
     urefs::Vector{Vector{Float64}}
     x0::Vector{Float64}
     mI::Symbol
-    N::Int
-    Δt::Float64
     function ProblemParameters(
         system::HybridSystem,
-        integrator::ExplicitIntegrator,
         stage_cost::Function,
         terminal_cost::Function,
-        xrefs::Vector{Vector{Float64}},
-        urefs::Vector{Vector{Float64}},
-        x0::Vector{Float64},
-        mI::Symbol,
+        integrator::ExplicitIntegrator,
         N::Int,
         Δt::Float64,
+        xrefs::Vector{Vector{Float64}} =Vector{Float64}[],
+        urefs::Vector{Vector{Float64}} = Vector{Float64}[],
+        x0::Vector{Float64} = Float64[],
+        mI::Symbol = :nothing,
     )::ProblemParameters
         cost = TrajectoryCost(stage_cost, terminal_cost)
-        return new(system, integrator, cost, xrefs, urefs, x0, mI, N, Δt)
+        return new(system, cost, integrator, N, Δt, xrefs, urefs, x0, mI)
     end
 end
 
@@ -37,11 +37,10 @@ mutable struct ForwardTerms
     J::Float64
     α::Float64
     function ForwardTerms(
-        params::ProblemParameters
+        nx::Int,
+        nu::Int,
+        N::Int
     )::ForwardTerms
-        nx = params.system.nx
-        nu = params.system.nu
-        N = params.N
         xs = [zeros(nx) for k = 1:N]
         us = [zeros(nu) for k = 1:(N-1)]
         f̂s = [zeros(nx) for k = 1:N]
@@ -59,11 +58,10 @@ mutable struct BackwardTerms
     ds::Vector{Vector{Float64}}
     ΔJ::Float64
     function BackwardTerms(
-        params::ProblemParameters
+        nx::Int,
+        nu::Int,
+        N::Int
     )::BackwardTerms
-        nx = params.system.nx
-        nu = params.system.nu
-        N = params.N
         Ks = [zeros(nu,nx) for k = 1:(N-1)]
         ds = [zeros(nu) for k = 1:(N-1)]
         ΔJ = 0.0
@@ -78,11 +76,13 @@ mutable struct ProblemTerms
     bwd::BackwardTerms
     Jexp::CostExpansion
     Qexp::ActionValueExpansion
-    function ProblemTerms()::ProblemTerms
-        fwd = ForwardTerms()
-        bwd = BackwardTerms()
-        Jexp = CostExpansion()
-        Qexp = ActionValueExpansion()
+    function ProblemTerms(
+        params::ProblemParameters
+    )::ProblemTerms
+        fwd = ForwardTerms(params.system.nx, params.system.nu, params.N)
+        bwd = BackwardTerms(params.system.nx, params.system.nu, params.N)
+        Jexp = CostExpansion(params.system.nx, params.system.nu)
+        Qexp = ActionValueExpansion(params.system.nx, params.system.nu)
         return new(fwd, bwd, Jexp, Qexp)
     end
 end
@@ -91,7 +91,8 @@ end
 """
 function update_backward_terms!(
     bwd::BackwardTerms,
-    Qexp::ActionValueExpansion
+    Qexp::ActionValueExpansion,
+    k::Int
 )::Nothing
     bwd.Ks[k] .= Qexp.Quu \ Qexp.Qux
     bwd.ds[k] .= Qexp.Quu \ Qexp.Qu
@@ -108,11 +109,11 @@ function differentiate_flow!(
     x::Vector{Float64},
     u::Vector{Float64}
 )::Nothing
-    Qexp.A .= ForwardDiff.jacobian(
-        δx -> params.integrator(flow, δx, u, params.Δt), x
+    ForwardDiff.jacobian!(
+        Qexp.A, δx -> params.integrator(flow, δx, u, params.Δt), x
     )
-    Qexp.B .= ForwardDiff.jacobian(
-        δu -> params.integrator(flow, x, δu, params.Δt), u
+    ForwardDiff.jacobian!(
+        Qexp.B, δu -> params.integrator(flow, x, δu, params.Δt), u
     )
     return nothing
 end
@@ -127,16 +128,20 @@ function backward_pass!(
     params::ProblemParameters,
     #sequence::Vector{TransitionTiming}, # TODO
 )::Nothing
+    bwd.ΔJ = 0.0
+
     xerr = fwd.xs[end] - params.xrefs[end]
     uerr = zeros(params.system.nu)
-    expand_terminal_cost!(Jexp, params.cost, xerr)
+    expand_terminal_cost!(Qexp, Jexp, params.cost, xerr)
+
     for k = (params.N-1) : -1 : 1
         xerr = fwd.xs[k] - params.xrefs[k]
         uerr = fwd.us[k] - params.urefs[k]
+
         expand_stage_cost!(Jexp, params.cost, xerr, uerr)
-        differentiate_flow!(Qexp, params, flow, fwd.xs[k], fwd.us[k])
+        differentiate_flow!(Qexp, params, params.system.modes[:nominal].flow, fwd.xs[k], fwd.us[k])
         expand_Q!(Qexp, Jexp, fwd.f̂s[k])
-        update_backward_terms!(bwd, Qexp)
+        update_backward_terms!(bwd, Qexp, k)
         expand_V!(Qexp, bwd.Ks[k], bwd.ds[k])
     end
     return nothing
@@ -154,25 +159,32 @@ function nonlinear_rollout!(
     bwd::BackwardTerms,
     params::ProblemParameters
 )::Nothing
-    mI = system.modes[params.mI]
-    for k = 1:(N-1)
-        x, u = fwd.xs[k], fwd.us[k]
+    prev_xs = copy(fwd.xs)
+    prev_us = copy(fwd.us)
+    mI = params.system.modes[params.mI]
+
+    for k = 1:(params.N-1)
+        x = fwd.xs[k]
 
         # Reset and update mode if a guard is hit
         for (transition, mJ) in mI.transitions
-            if transition.guard(x) <= 0.0
-                x = transition.reset(x)
+            if transition.guard(fwd.xs[k]) <= 0.0
+                x = transition.reset(fwd.xs[k])
                 mI = mJ
                 break
             end
         end
 
+        #fwd.us[k] .= prev_us[k] + fwd.α*bwd.ds[k] + bwd.Ks[k]*(x - prev_xs[k])
+        #fwd.f̂s[k] .= zeros(params.system.nx)
+        #"""
+        #fwd.f̂s[k] .= params.integrator(mI.flow, x, u, params.Δt) - fwd.xs[k+1]
+
         c = 1 - fwd.α
-        fwd.f̂s[k] .= params.integrator(mI.flow, x, u, params.Δt) - fwd.xs[k+1]
         x̂ = x - c*fwd.f̂s[k]
-        û = u - fwd.α * bwd.ds[k] - bwd.Ks[k] * (x̂-x)
+        fwd.us[k] .= prev_us[k] - fwd.α * bwd.ds[k] - bwd.Ks[k] * (x̂-x)
         fwd.xs[k+1] .= -c*fwd.f̂s[k] + params.integrator(
-            mI.flow, x̂, û, params.Δt
+            mI.flow, x̂, fwd.us[k], params.Δt
         )
     end
     return nothing
@@ -188,7 +200,7 @@ function forward_pass!(
 )::Nothing
     #Jprev = params.cost(params.xrefs, params.urefs, fwd.xs, fwd.us)
     nonlinear_rollout!(fwd, bwd, params)
-    fwd.f̂norm =
+    fwd.f̂norm = norm(fwd.f̂s, Inf)
     fwd.J = params.cost(params.xrefs, params.urefs, fwd.xs, fwd.us)
     return nothing
 end
@@ -200,9 +212,9 @@ function log(
     bwd::BackwardTerms,
     iter::Int
 )::Nothing
-    if rem(ilqr_iter-1,10) == 0
-        @printf "iter     J           ΔJ        |d|         α         \n"
-        @printf "-------------------------------------------------\n"
+    if rem(iter - 1, 10) == 0
+        @printf "iter      J           ΔJ        |f̂|        α         \n"
+        @printf "-----------------------------------------------\n"
     end
     @printf("%3d   %10.3e  %9.2e  %9.2e  %6.4f    \n",
     iter, fwd.J, bwd.ΔJ, fwd.f̂norm, fwd.α)
@@ -216,18 +228,14 @@ function terminate(
     defect_tol::Float64,
     stat_tol::Float64
 )::Bool
-    if (fwd.f̂norm < defect_tol) & (bwd.ΔJ < stat_tol)
-        return true
-    else
-        return false
-    end
+    return (fwd.f̂norm < defect_tol) & (bwd.ΔJ < stat_tol) ? true : false
 end
 
 """
 """
 function SiLQR_solve!(
-    params::ProblemParameters,
-    terms::ProblemTerms;
+    terms::ProblemTerms,
+    params::ProblemParameters;
     α::Float64 = 1.0,
     defect_tol::Float64 = 1e-6,
     stat_tol::Float64 = 1e-3,
@@ -254,4 +262,17 @@ function SiLQR_solve!(
 
     println("Max iterations exceeded!")
     return nothing
+end
+
+function SiLQR_solve(
+    params::ProblemParameters;
+    α::Float64 = 1.0,
+    defect_tol::Float64 = 1e-6,
+    stat_tol::Float64 = 1e-3,
+    max_iter::Int = 100,
+    verbose::Bool = true
+)::ProblemTerms
+    terms = ProblemTerms(params)
+    SiLQR_solve!(terms, params; α, defect_tol, stat_tol, max_iter, verbose)
+    return terms
 end

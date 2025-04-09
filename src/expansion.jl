@@ -23,21 +23,6 @@ end
 
 """
 """
-function expand_terminal_cost!(
-    Jexp::CostExpansion,
-    cost::TrajectoryCost,
-    xerr::Vector{Float64}
-)::Nothing
-    Jexp.Jxx_result = ForwardDiff.hessian!(
-        Jexp.Jxx_result, cost.terminal, xerr
-    )
-    Jexp.Jx .= DiffResults.gradient(Jexp.Jxx_result)
-    Jexp.Jxx .= DiffResults.hessian(Jexp.Jxx_result)
-    return nothing
-end
-
-"""
-"""
 function expand_stage_cost!(
     Jexp::CostExpansion,
     cost::TrajectoryCost,
@@ -92,6 +77,22 @@ end
 
 """
 """
+function expand_terminal_cost!(
+    Qexp::ActionValueExpansion,
+    Jexp::CostExpansion,
+    cost::TrajectoryCost,
+    xerr::Vector{Float64}
+)::Nothing
+    Jexp.Jxx_result = ForwardDiff.hessian!(
+        Jexp.Jxx_result, cost.terminal, xerr
+    )
+    Qexp.Vx .= DiffResults.gradient(Jexp.Jxx_result)
+    Qexp.Vxx .= DiffResults.hessian(Jexp.Jxx_result)
+    return nothing
+end
+
+"""
+"""
 function expand_Q!(
     Qexp::ActionValueExpansion,
     Jexp::CostExpansion,
@@ -102,8 +103,8 @@ function expand_Q!(
     Qexp.Qu .= Jexp.Ju + Qexp.B'*Qexp.V̂x
     Qexp.Qxx .= Jexp.Jxx + Qexp.A'*Qexp.Vxx*Qexp.A
     Qexp.Quu .= Jexp.Juu + Qexp.B'*Qexp.Vxx*Qexp.B
-    Qexp.Qux .= Qexp.B' * Qexp.Vxx*Qexp.A
-    Qexp.Qxu .= Qexp.A' * Qexp.Vxx*Qexp.B
+    Qexp.Qux .= Qexp.B' * Qexp.Vxx * Qexp.A
+    Qexp.Qxu .= Qexp.A' * Qexp.Vxx * Qexp.B
     return nothing
 end
 
