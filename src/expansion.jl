@@ -62,6 +62,7 @@ end
 mutable struct StateActionExpansion
     A::Matrix{Float64}
     B::Matrix{Float64}
+    V̂x::Vector{Float64}
     Vx::Vector{Float64}
     Vxx::Matrix{Float64}
     Qx::Vector{Float64}
@@ -76,6 +77,7 @@ mutable struct StateActionExpansion
     )::StateActionExpansion
         A = zeros(nx, nx)
         B = zeros(nx, nu)
+        V̂x = zeros(nx)
         Vx = zeros(nx)
         Vxx = zeros(nx, nx)
         Qx = zeros(nx)
@@ -84,7 +86,7 @@ mutable struct StateActionExpansion
         Quu = zeros(nu, nu)
         Qxu = zeros(nx, nu)
         Qux = zeros(nu, nx)
-        return new(A, B, Vx, Vxx, Qx, Qu, Qxx, Quu, Qxu, Qux)
+        return new(A, B, V̂x, Vx, Vxx, Qx, Qu, Qxx, Quu, Qxu, Qux)
     end
 end
 
@@ -92,10 +94,12 @@ end
 """
 function expand_Q!(
     Qexp::StateActionExpansion,
-    Jexp::CostExpansion
+    Jexp::CostExpansion,
+    f̂::Vector{Float64}
 )::Nothing
-    Qexp.Qx = Jexp.Jx + Qexp.A'*Qexp.Vx
-    Qexp.Qu = Jexp.Ju + Qexp.B'*Qexp.Vx
+    Qexp.V̂x = Qexp.Vx + Qexp.Vxx*f̂
+    Qexp.Qx = Jexp.Jx + Qexp.A'*Qexp.V̂x
+    Qexp.Qu = Jexp.Ju + Qexp.B'*Qexp.V̂x
     Qexp.Qxx = Jexp.Jxx + Qexp.A'*Qexp.Vxx*Qexp.A
     Qexp.Quu = Jexp.Juu + Qexp.B'*Qexp.Vxx*Qexp.B
     Qexp.Qux = Qexp.B' * Qexp.Vxx*Qexp.A
