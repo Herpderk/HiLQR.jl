@@ -3,7 +3,9 @@ module SiLQR
 using LinearAlgebra
 using ForwardDiff
 using DiffResults
-using HybridRobotDynamics
+using Printf
+
+using HybridRobotDynamics: HybridSystem, Transition, ExplicitIntegrator
 
 include("utils.jl")
 include("objective.jl")
