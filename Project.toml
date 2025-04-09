@@ -4,6 +4,7 @@ authors = ["Derek Fan <derekfan.18.2002@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+DiffResults = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HybridRobotDynamics = "7b132197-0f72-4153-9f31-a6b714d67d31"
 HybridTrajIpopt = "12cc1b55-64cf-473a-98d1-e36391ce47d3"
