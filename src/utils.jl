@@ -1,4 +1,4 @@
-const DiffFloat = Union{AbstractFloat, ForwardDiff.Dual}
+const DiffFloat = Union{Float64, ForwardDiff.Dual}
 
 """
     get_module_function_names(mod)
