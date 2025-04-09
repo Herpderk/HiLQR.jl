@@ -4,11 +4,11 @@ mutable struct ProblemParameters
     system::HybridSystem
     cost::TrajectoryCost
     integrator::ExplicitIntegrator
+    N::Int
+    Δt::Float64
     xrefs::Vector{Vector{Float64}}
     urefs::Vector{Vector{Float64}}
-    Δt::Float64
-    N::Int,
-    x0::Vector{Float64},
+    x0::Vector{Float64}
     mI::Symbol
 end
 
