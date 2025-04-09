@@ -31,8 +31,8 @@ function expand_terminal_cost!(
     Jexp.Jxx_result = ForwardDiff.hessian!(
         Jexp.Jxx_result, cost.terminal, xerr
     )
-    Jexp.Jx = DiffResults.gradient(Jexp.Jxx_result)
-    Jexp.Jxx = DiffResults.hessian(Jexp.Jxx_result)
+    Jexp.Jx .= DiffResults.gradient(Jexp.Jxx_result)
+    Jexp.Jxx .= DiffResults.hessian(Jexp.Jxx_result)
     return nothing
 end
 
@@ -50,10 +50,10 @@ function expand_stage_cost!(
     Jexp.Juu_result = ForwardDiff.hessian!(
         Jexp.Juu_result, δu -> cost.stage(xerr, δu), uerr
     )
-    Jexp.Jx = DiffResults.gradient(Jexp.Jxx_result)
-    Jexp.Ju = DiffResults.gradient(Jexp.Juu_result)
-    Jexp.Jxx = DiffResults.hessian(Jexp.Jxx_result)
-    Jexp.Juu = DiffResults.hessian(Jexp.Juu_result)
+    Jexp.Jx .= DiffResults.gradient(Jexp.Jxx_result)
+    Jexp.Ju .= DiffResults.gradient(Jexp.Juu_result)
+    Jexp.Jxx .= DiffResults.hessian(Jexp.Jxx_result)
+    Jexp.Juu .= DiffResults.hessian(Jexp.Juu_result)
     return nothing
 end
 
@@ -97,13 +97,13 @@ function expand_Q!(
     Jexp::CostExpansion,
     f̂::Vector{Float64}
 )::Nothing
-    Qexp.V̂x = Qexp.Vx + Qexp.Vxx*f̂
-    Qexp.Qx = Jexp.Jx + Qexp.A'*Qexp.V̂x
-    Qexp.Qu = Jexp.Ju + Qexp.B'*Qexp.V̂x
-    Qexp.Qxx = Jexp.Jxx + Qexp.A'*Qexp.Vxx*Qexp.A
-    Qexp.Quu = Jexp.Juu + Qexp.B'*Qexp.Vxx*Qexp.B
-    Qexp.Qux = Qexp.B' * Qexp.Vxx*Qexp.A
-    Qexp.Qxu = Qexp.A' * Qexp.Vxx*Qexp.B
+    Qexp.V̂x .= Qexp.Vx + Qexp.Vxx*f̂
+    Qexp.Qx .= Jexp.Jx + Qexp.A'*Qexp.V̂x
+    Qexp.Qu .= Jexp.Ju + Qexp.B'*Qexp.V̂x
+    Qexp.Qxx .= Jexp.Jxx + Qexp.A'*Qexp.Vxx*Qexp.A
+    Qexp.Quu .= Jexp.Juu + Qexp.B'*Qexp.Vxx*Qexp.B
+    Qexp.Qux .= Qexp.B' * Qexp.Vxx*Qexp.A
+    Qexp.Qxu .= Qexp.A' * Qexp.Vxx*Qexp.B
     return nothing
 end
 
@@ -114,7 +114,7 @@ function expand_V!(
     K::Matrix{Float64},
     d::Vector{Float64}
 )::Nothing
-    Qexp.Vx = Qexp.Qx - K'*Qexp.Qu + K'*Qexp.Quu*d - Qexp.Qxu*d
-    Qexp.Vxx = Qexp.Qxx + K'*Qexp.Quu*K - Qexp.Qxu*K - K'*Qexp.Qux
+    Qexp.Vx .= Qexp.Qx - K'*Qexp.Qu + K'*Qexp.Quu*d - Qexp.Qxu*d
+    Qexp.Vxx .= Qexp.Qxx + K'*Qexp.Quu*K - Qexp.Qxu*K - K'*Qexp.Qux
     return nothing
 end
