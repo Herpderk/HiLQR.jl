@@ -29,6 +29,26 @@ end
 
 """
 """
+mutable struct Solution
+    xs::Vector{Vector{Float64}}
+    us::Vector{Vector{Float64}}
+    f̂s::Vector{Vector{Float64}}
+    J::Float64
+    function Solution(
+        nx::Int,
+        nu::Int,
+        N::Int
+    )::Solution
+        xs = [zeros(nx) for k = 1:N]
+        us = [zeros(nu) for k = 1:(N-1)]
+        f̂s = [zeros(nx) for k = 1:N]
+        J = 0.0
+        return new(xs, us, f̂s, J)
+    end
+end
+
+"""
+"""
 mutable struct ForwardTerms
     xs::Vector{Vector{Float64}}
     us::Vector{Vector{Float64}}
@@ -76,6 +96,7 @@ end
 """
 """
 mutable struct ProblemTerms
+    sol::Solution
     fwd::ForwardTerms
     bwd::BackwardTerms
     Jexp::CostExpansion
@@ -83,11 +104,13 @@ mutable struct ProblemTerms
     function ProblemTerms(
         params::ProblemParameters
     )::ProblemTerms
-        fwd = ForwardTerms(params.system.nx, params.system.nu, params.N)
-        bwd = BackwardTerms(params.system.nx, params.system.nu, params.N)
-        Jexp = CostExpansion(params.system.nx, params.system.nu)
-        Qexp = ActionValueExpansion(params.system.nx, params.system.nu)
-        return new(fwd, bwd, Jexp, Qexp)
+        dims = (params.system.nx, params.system.nu, params.N)
+        sol = Solution(dims...)
+        fwd = ForwardTerms(dims...)
+        bwd = BackwardTerms(dims...)
+        Jexp = CostExpansion(dims[1:2]...)
+        Qexp = ActionValueExpansion(dims[1:2]...)
+        return new(sol, fwd, bwd, Jexp, Qexp)
     end
 end
 
@@ -211,9 +234,7 @@ function forward_pass!(
     for i = 1:ls_iter
         nonlinear_rollout!(fwd, bwd, params)
         J_ls = params.cost(params.xrefs, params.urefs, fwd.xs_ls, fwd.us_ls)
-        if J_ls < fwd.J
-            break
-        end
+        J_ls < fwd.J ? break : nothing
         fwd.α *= 0.5
     end
 
@@ -254,6 +275,45 @@ end
 
 """
 """
+function inner_solve!(
+    terms::ProblemTerms,
+    params::ProblemParameters,
+    defect_tol::Float64,
+    stat_tol::Float64,
+    max_iter::Int,
+    max_ls_iter::Int,
+    verbose::Bool
+)::Nothing
+    fwd = terms.fwd
+    bwd = terms.bwd
+    Jexp = terms.Jexp
+    Qexp = terms.Qexp
+
+    terms.sol.xs = fwd.xs
+    terms.sol.us = fwd.us
+    terms.sol.f̂s = fwd.f̂s
+    terms.sol.J = fwd.J
+
+    fwd.xs[1] .= params.x0
+    fwd.xs_ls[1] .= params.x0
+    fwd.J = Inf
+    forward_pass!(fwd, bwd, params, 1)
+
+    for i = 1:max_iter
+        backward_pass!(bwd, fwd, Jexp, Qexp, params)
+        forward_pass!(fwd, bwd, params, max_ls_iter)
+        verbose ? log(fwd, bwd, i) : nothing
+
+        if terminate(fwd, bwd, defect_tol, stat_tol)
+            verbose ? println("Optimal solution found!") : nothing
+            return nothing
+        end
+    end
+
+    println("Maximum iterations exceeded!")
+    return nothing
+end
+
 function SiLQR_solve!(
     terms::ProblemTerms,
     params::ProblemParameters;
@@ -263,25 +323,12 @@ function SiLQR_solve!(
     max_ls_iter::Int = 10,
     verbose::Bool = true
 )::Nothing
-    fwd, bwd, Jexp, Qexp = terms.fwd, terms.bwd, terms.Jexp, terms.Qexp
-    fwd.xs[1] .= params.x0
-    fwd.xs_ls[1] .= params.x0
-    fwd.J = Inf
-    forward_pass!(fwd, bwd, params, 1)
-
-    for i = 1:max_iter
-        backward_pass!(bwd, fwd, Jexp, Qexp, params)
-        forward_pass!(fwd, bwd, params, max_ls_iter)
-        if verbose
-            log(fwd, bwd, i)
-        end
-        if i > 1 && terminate(fwd, bwd, defect_tol, stat_tol)
-            println("Optimal solution found!")
-            return nothing
-        end
-    end
-
-    println("Max iterations exceeded!")
+    inner_solve!(
+        terms, params,
+        defect_tol, stat_tol,
+        max_iter, max_ls_iter,
+        verbose
+    )
     return nothing
 end
 
@@ -290,9 +337,15 @@ function SiLQR_solve(
     defect_tol::Float64 = 1e-6,
     stat_tol::Float64 = 1e-4,
     max_iter::Int = 100,
+    max_ls_iter::Int = 10,
     verbose::Bool = true
-)::ProblemTerms
+)::Solution
     terms = ProblemTerms(params)
-    SiLQR_solve!(terms, params; defect_tol, stat_tol, max_iter, verbose)
-    return terms
+    inner_solve!(
+        terms, params,
+        defect_tol, stat_tol,
+        max_iter, max_ls_iter,
+        verbose
+    )
+    return terms.sol
 end
