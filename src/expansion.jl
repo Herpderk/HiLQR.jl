@@ -83,9 +83,7 @@ function expand_terminal_cost!(
     cost::TrajectoryCost,
     xerr::Vector{Float64}
 )::Nothing
-    Jexp.Jxx_result = ForwardDiff.hessian!(
-        Jexp.Jxx_result, cost.terminal, xerr
-    )
+    Jexp.Jxx_result = ForwardDiff.hessian!(Jexp.Jxx_result, cost.terminal, xerr)
     Qexp.Vx .= DiffResults.gradient(Jexp.Jxx_result)
     Qexp.Vxx .= DiffResults.hessian(Jexp.Jxx_result)
     return nothing
@@ -103,8 +101,8 @@ function expand_Q!(
     Qexp.Qu .= Jexp.Ju + Qexp.B'*Qexp.V̂x
     Qexp.Qxx .= Jexp.Jxx + Qexp.A'*Qexp.Vxx*Qexp.A
     Qexp.Quu .= Jexp.Juu + Qexp.B'*Qexp.Vxx*Qexp.B
-    Qexp.Qux .= Qexp.B' * Qexp.Vxx * Qexp.A
     Qexp.Qxu .= Qexp.A' * Qexp.Vxx * Qexp.B
+    Qexp.Qux .= Qexp.B' * Qexp.Vxx * Qexp.A
     return nothing
 end
 
