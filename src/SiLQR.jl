@@ -7,12 +7,6 @@ using Printf
 
 using HybridRobotDynamics: HybridSystem, Transition, ExplicitIntegrator
 
-export
-        ProblemParameters,
-        ProblemTerms,
-        SiLQR_solve!,
-        SiLQR_solve
-
 include("utils.jl")
 include("objective.jl")
 include("expansion.jl")
