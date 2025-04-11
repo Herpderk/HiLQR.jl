@@ -2,11 +2,14 @@ module SiLQR
 
 using LinearAlgebra
 using ForwardDiff
-using HybridRobotDynamics
+using DiffResults
+using Printf
+
+using HybridRobotDynamics: HybridSystem, Transition, ExplicitIntegrator
 
 include("utils.jl")
-include("indexing.jl")
 include("objective.jl")
+include("expansion.jl")
 include("line_search.jl")
 include("solver.jl")
 
