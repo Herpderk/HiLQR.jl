@@ -178,7 +178,10 @@ function backward_pass!(
     expand_terminal_cost!(Qexp, Jexp, params.cost, xerr)
 
     for k = (params.N-1) : -1 : 1
-        get_flow_jacobians!(Qexp, params, params.system.modes[:nominal].flow, sol.xs[k], sol.us[k])
+        get_flow_jacobians!(
+            Qexp, params, params.system.modes[params.mI].flow,
+            sol.xs[k], sol.us[k]
+        )
         xerr .= sol.xs[k] - params.xrefs[k]
         uerr .= sol.us[k] - params.urefs[k]
         expand_stage_cost!(Jexp, params.cost, xerr, uerr)
@@ -332,7 +335,7 @@ function inner_solve!(
         end
     end
 
-    println("Maximum iterations exceeded!")
+    verbose ? println("Maximum iterations exceeded!") : nothing
     return nothing
 end
 
