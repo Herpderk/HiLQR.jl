@@ -56,6 +56,7 @@ mutable struct ActionValueExpansion
     Quu::Matrix{Float64}
     Qxu::Matrix{Float64}
     Qux::Matrix{Float64}
+    Quu_reg::Matrix{Float64}
     function ActionValueExpansion(
         nx::Int,
         nu::Int
@@ -71,7 +72,8 @@ mutable struct ActionValueExpansion
         Quu = zeros(nu, nu)
         Qxu = zeros(nx, nu)
         Qux = zeros(nu, nx)
-        return new(A, B, V̂x, Vx, Vxx, Qx, Qu, Qxx, Quu, Qxu, Qux)
+        Quu_reg = zeros(nu, nu)
+        return new(A, B, V̂x, Vx, Vxx, Qx, Qu, Qxx, Quu, Qxu, Qux, Quu_reg)
     end
 end
 

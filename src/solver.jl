@@ -147,16 +147,12 @@ end
 function update_backward_terms!(
     bwd::BackwardTerms,
     Qexp::ActionValueExpansion,
+    μ::Float64,
     k::Int
 )::Nothing
-    Quu_reg = Qexp.Quu + 1e-6*I
-    try
-        bwd.Ks[k] .= Quu_reg \ Qexp.Qux
-        bwd.ds[k] .= Quu_reg \ Qexp.Qu
-    catch e
-        @show Quu_reg
-        error()
-    end
+    Qexp.Quu_reg .= Qexp.Quu + μ*I
+    bwd.Ks[k] .= Qexp.Quu_reg \ Qexp.Qux
+    bwd.ds[k] .= Qexp.Quu_reg \ Qexp.Qu
     bwd.ΔJ += Qexp.Qu' * bwd.ds[k]
     return nothing
 end
@@ -169,10 +165,10 @@ function backward_pass!(
     Qexp::ActionValueExpansion,
     sol::Solution,
     params::Parameters,
+    μ::Float64
     #sequence::Vector{TransitionTiming}, # TODO
 )::Nothing
     bwd.ΔJ = 0.0
-
     xerr = sol.xs[end] - params.xrefs[end]
     uerr = zeros(params.system.nu)
     expand_terminal_cost!(Qexp, Jexp, params.cost, xerr)
@@ -186,7 +182,7 @@ function backward_pass!(
         uerr .= sol.us[k] - params.urefs[k]
         expand_stage_cost!(Jexp, params.cost, xerr, uerr)
         expand_Q!(Qexp, Jexp, sol.f̂s[k])
-        update_backward_terms!(bwd, Qexp, k)
+        update_backward_terms!(bwd, Qexp, μ, k)
         expand_V!(Qexp, bwd.Ks[k], bwd.ds[k])
     end
     return nothing
@@ -312,6 +308,7 @@ function inner_solve!(
     sol::Solution,
     cache::Cache,
     params::Parameters,
+    regularizer::Float64,
     defect_tol::Float64,
     stat_tol::Float64,
     max_iter::Int,
@@ -325,7 +322,7 @@ function inner_solve!(
     init_forward_terms!(sol, fwd, bwd, params)
 
     for i = 1:max_iter
-        backward_pass!(bwd, Jexp, Qexp, sol, params)
+        backward_pass!(bwd, Jexp, Qexp, sol, params, regularizer)
         forward_pass!(sol, fwd, bwd, params, max_ls_iter)
 
         verbose ? log(sol, fwd, bwd, i) : nothing
@@ -343,6 +340,7 @@ function solve!(
     sol::Solution,
     cache::Cache,
     params::Parameters;
+    regularizer::Float64 = 1e-6,
     defect_tol::Float64 = 1e-6,
     stat_tol::Float64 = 1e-4,
     max_iter::Int = 100,
@@ -350,9 +348,14 @@ function solve!(
     verbose::Bool = true
 )::Nothing
     inner_solve!(
-        sol, cache, params,
-        defect_tol, stat_tol,
-        max_iter, max_ls_iter,
+        sol,
+        cache,
+        params,
+        regularizer,
+        defect_tol,
+        stat_tol,
+        max_iter,
+        max_ls_iter,
         verbose
     )
     return nothing
@@ -360,6 +363,7 @@ end
 
 function solve(
     params::Parameters;
+    regularizer::Float64 = 1e-6,
     defect_tol::Float64 = 1e-6,
     stat_tol::Float64 = 1e-4,
     max_iter::Int = 100,
@@ -369,9 +373,14 @@ function solve(
     sol = Solution(params)
     cache = Cache(params)
     inner_solve!(
-        sol, cache, params,
-        defect_tol, stat_tol,
-        max_iter, max_ls_iter,
+        sol,
+        cache,
+        params,
+        regularizer,
+        defect_tol,
+        stat_tol,
+        max_iter,
+        max_ls_iter,
         verbose
     )
     return sol
