@@ -10,8 +10,10 @@ using HybridRobotDynamics: HybridSystem, Transition, ExplicitIntegrator
 
 include("utils.jl")
 include("objective.jl")
-include("expansion.jl")
-include("line_search.jl")
-include("solver.jl")
+include("structs.jl")
+include("solver/expansion.jl")
+include("solver/backward.jl")
+include("solver/forward.jl")
+include("solver/solver.jl")
 
 end # module SiLQR

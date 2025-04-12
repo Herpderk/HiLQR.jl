@@ -1,29 +1,5 @@
 """
 """
-mutable struct CostExpansion
-    Jx::Vector{Float64}
-    Ju::Vector{Float64}
-    Jxx::Matrix{Float64}
-    Juu::Matrix{Float64}
-    Jxx_result::DiffResults.DiffResult
-    Juu_result::DiffResults.DiffResult
-end
-
-function CostExpansion(
-    nx::Int,
-    nu::Int
-)::CostExpansion
-    Jx = zeros(nx)
-    Ju = zeros(nu)
-    Jxx = zeros(nx, nx)
-    Juu = zeros(nu, nu)
-    Jxx_result = DiffResults.HessianResult(zeros(nx))
-    Juu_result = DiffResults.HessianResult(zeros(nu))
-    return CostExpansion(Jx, Ju, Jxx, Juu, Jxx_result, Juu_result)
-end
-
-"""
-"""
 function expand_stage_cost!(
     Jexp::CostExpansion,
     cost::TrajectoryCost,
@@ -41,78 +17,6 @@ function expand_stage_cost!(
     Jexp.Jxx .= DiffResults.hessian(Jexp.Jxx_result)
     Jexp.Juu .= DiffResults.hessian(Jexp.Juu_result)
     return nothing
-end
-
-"""
-"""
-mutable struct ActionValueExpansion
-    A::Matrix{Float64}
-    B::Matrix{Float64}
-
-    V̂x::Vector{Float64}
-    Vx::Vector{Float64}
-    Vxx::Matrix{Float64}
-
-    Qx::Vector{Float64}
-    Qu::Vector{Float64}
-
-    Qxx::Matrix{Float64}
-    Quu::Matrix{Float64}
-    Quu_reg::Matrix{Float64}
-
-    Qxu::Matrix{Float64}
-    Qux::Matrix{Float64}
-end
-
-function ActionValueExpansion(
-    nx::Int,
-    nu::Int
-)::ActionValueExpansion
-    A = zeros(nx, nx)
-    B = zeros(nx, nu)
-    V̂x = zeros(nx)
-    Vx = zeros(nx)
-    Vxx = zeros(nx, nx)
-    Qx = zeros(nx)
-    Qu = zeros(nu)
-    Qxx = zeros(nx, nx)
-    Quu = zeros(nu, nu)
-    Quu_reg = zeros(nu, nu)
-    Qxu = zeros(nx, nu)
-    Qux = zeros(nu, nx)
-    return ActionValueExpansion(
-        A, B,
-        V̂x, Vx, Vxx,
-        Qx, Qu,
-        Qxx, Quu, Quu_reg,
-        Qxu, Qux
-    )
-end
-
-"""
-"""
-mutable struct TemporaryArrays
-    x::Vector{Float64}
-    u::Vector{Float64}
-    xx::Matrix{Float64}
-    uu::Matrix{Float64}
-    xu::Matrix{Float64}
-    ux::Matrix{Float64}
-    lu::SparseArrays.UMFPACK.UmfpackLU{Float64, Int64}
-end
-
-function TemporaryArrays(
-    nx::Int,
-    nu::Int
-)::TemporaryArrays
-    x = zeros(nx)
-    u = zeros(nu)
-    xx = zeros(nx, nx)
-    uu = zeros(nu, nu)
-    xu = zeros(nx, nu)
-    ux = zeros(nu, nx)
-    lu_val = lu(sparse(I, nu, nu))
-    return TemporaryArrays(x, u, xx, uu, xu, ux, lu_val)
 end
 
 """
