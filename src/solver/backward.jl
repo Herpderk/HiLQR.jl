@@ -18,7 +18,7 @@ end
 
 """
 """
-function update_backward_terms!(
+function get_backward_terms!(
     bwd::BackwardTerms,
     Qexp::ActionValueExpansion,
     tmp::TemporaryArrays,
@@ -69,7 +69,7 @@ function backward_pass!(
         tmp.u .= sol.us[k] .- params.urefs[k]
         expand_stage_cost!(Jexp, params.cost, tmp.x, tmp.u)
         expand_Q!(Qexp, Jexp, tmp, sol.f̂s[k])
-        update_backward_terms!(bwd, Qexp, tmp, μ, k)
+        get_backward_terms!(bwd, Qexp, tmp, μ, k)
         expand_V!(Qexp, tmp, bwd.Ks[k], bwd.ds[k])
     end
     return nothing
