@@ -1,6 +1,7 @@
 module SiLQR
 
 using LinearAlgebra
+using SparseArrays
 using ForwardDiff
 using DiffResults
 using Printf
