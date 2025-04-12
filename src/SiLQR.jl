@@ -11,7 +11,7 @@ using HybridRobotDynamics: HybridSystem, Transition, ExplicitIntegrator
 include("utils.jl")
 include("objective.jl")
 include("structs.jl")
-include("solver/expansion.jl")
+include("expansion.jl")
 include("solver/backward.jl")
 include("solver/forward.jl")
 include("solver/solver.jl")
