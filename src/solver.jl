@@ -154,17 +154,18 @@ function update_backward_terms!(
     k::Int
 )::Nothing
     # Regularized Quu
-    # Quu_reg = Quu + μ*I
+    # Qexp.Quu_reg = Qexp.Quu + μ*I
     mul!(Qexp.Quu_reg, μ, I)
     Qexp.Quu_reg .+= Qexp.Quu
+    tmp.lu = lu(sparse(Qexp.Quu_reg))
 
-    # Feedback and feedforward
-    # K = Quu_reg \ Qux
-    Quu_lu = lu(Qexp.Quu_reg)
-    ldiv!(bwd.Ks[k], Quu_lu, Qexp.Qux)
+    # Feedback gains
+    #bwd.Ks[k] .= Qexp.Quu_reg \ Qexp.Qux
+    ldiv!(bwd.Ks[k], tmp.lu, Qexp.Qux)
 
-    # d = Quu_reg \ Qu
-    ldiv!(bwd.ds[k], Quu_lu, Qexp.Qu)
+    # Feedforward
+    #bwd.ds[k] .= Qexp.Quu_reg \ Qexp.Qu
+    ldiv!(bwd.ds[k], tmp.lu, Qexp.Qu)
 
     # Change in cost
     bwd.ΔJ += Qexp.Qu' * bwd.ds[k]
@@ -237,11 +238,11 @@ function nonlinear_rollout!(
         #x̂ = x - c*fwd.f̂s[k]
 
         # Get new input
-        #fwd.us[k] = sol.us[k] - fwd.α*bwd.ds[k] - bwd.Ks[k]*(x - sol.xs[k])
+        # fwd.us[k] = sol.us[k] - fwd.α*bwd.ds[k] - bwd.Ks[k]*(x - sol.xs[k])
         fwd.us[k] = sol.us[k]
         mul!(tmp.u, fwd.α, bwd.ds[k])
         fwd.us[k] -= tmp.u
-        tmp.x .= x .- sol.xs[k]
+        tmp.x = x .- sol.xs[k]
         mul!(tmp.u, bwd.Ks[k], tmp.x)
         fwd.us[k] -= tmp.u
 

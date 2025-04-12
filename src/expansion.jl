@@ -138,35 +138,35 @@ function expand_Q!(
     f̂::Vector{Float64}
 )::Nothing
     # Cost-to-go gradient with defects
-    # V̂x = Vx + Vxx*f̂
+    # Qexp.V̂x .= Qexp.Vx + Qexp.Vxx*f̂
     mul!(Qexp.V̂x, Qexp.Vxx, f̂)
     Qexp.V̂x .+= Qexp.Vx
 
     # Action-value gradients
-    # Qx = Jx + A'*V̂x
+    # Qexp.Qx .= Jexp.Jx + Qexp.A'*Qexp.V̂x
     mul!(Qexp.Qx, Qexp.A', Qexp.V̂x)
     Qexp.Qx .+= Jexp.Jx
 
-    # Qu .= Ju + B'*V̂x
+    # Qexp.Qu .= Jexp.Ju + Qexp.B'*Qexp.V̂x
     mul!(Qexp.Qu, Qexp.B', Qexp.V̂x)
     Qexp.Qu .+= Jexp.Ju
 
     # Action-value hessians
-    # Qxx = Jxx + A'*Vxx*A
+    ## Qexp.Qxx .= Jexp.Jxx + Qexp.A'*Qexp.Vxx*Qexp.A
     mul!(tmp.xx, Qexp.A', Qexp.Vxx)
     mul!(Qexp.Qxx, tmp.xx, Qexp.A)
     Qexp.Qxx .+= Jexp.Jxx
 
-    # Quu .= Juu + B'*Vxx*B
+    # Qexp.Quu .= Jexp.Juu + Qexp.B'*Qexp.Vxx*Qexp.B
     mul!(tmp.ux, Qexp.B', Qexp.Vxx)
     mul!(Qexp.Quu, tmp.ux, Qexp.B)
     Qexp.Quu .+= Jexp.Juu
 
-    # Qxu .= A'*Vxx*B
+    # Qexp.Qxu .= Qexp.A'*Qexp.Vxx*Qexp.B
     mul!(tmp.xx, Qexp.A', Qexp.Vxx)
     mul!(Qexp.Qxu, tmp.xx, Qexp.B)
 
-    # Qux .= B'*Vxx*A
+    # Qexp.Qux .= Qexp.B'*Qexp.Vxx*Qexp.A
     mul!(tmp.ux, Qexp.B', Qexp.Vxx)
     mul!(Qexp.Qux, tmp.ux, Qexp.A)
     return nothing
@@ -200,6 +200,6 @@ function expand_V!(
     mul!(tmp.xx, tmp.xu, K)
     Qexp.Vxx .+= tmp.xx
     mul!(tmp.xx, Qexp.Qxu, K)
-    Qexp.Vxx .+= tmp.xx
+    Qexp.Vxx .-= tmp.xx
     return nothing
 end
