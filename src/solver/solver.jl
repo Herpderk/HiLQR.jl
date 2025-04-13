@@ -13,7 +13,7 @@ function log(
     end
 
     τ = 0
-    for trn in fwd.sched.trns
+    for trn in fwd.trns
         τ = !isnothing(trn.val) ? τ+1 : τ
     end
 
