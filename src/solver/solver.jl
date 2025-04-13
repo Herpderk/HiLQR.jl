@@ -53,7 +53,7 @@ function inner_solve!(
 
     # Main solve loop
     for i = 1:max_iter
-        backward_pass!(bwd, Jexp, Qexp, tmp, sol, params, regularizer)
+        backward_pass!(bwd, fwd, Jexp, Qexp, tmp, sol, params, regularizer)
         forward_pass!(sol, fwd, bwd, tmp, params, max_ls_iter)
 
         verbose ? log(sol, fwd, bwd, i) : nothing

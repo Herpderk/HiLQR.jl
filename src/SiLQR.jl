@@ -6,7 +6,12 @@ using ForwardDiff
 using DiffResults
 using Printf
 
-using HybridRobotDynamics: HybridSystem, Transition, ExplicitIntegrator
+using HybridRobotDynamics:
+        ExplicitIntegrator,
+        Transition,
+        SaltationMatrix,
+        HybridMode,
+        HybridSystem
 
 include("utils.jl")
 include("objective.jl")

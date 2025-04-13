@@ -1,9 +1,9 @@
 """
 """
 mutable struct Parameters
-    system::HybridSystem
+    sys::HybridSystem
     cost::TrajectoryCost
-    integrator::ExplicitIntegrator
+    igtr::ExplicitIntegrator
     N::Int
     Δt::Float64
     xrefs::Vector{Vector{Float64}}
@@ -27,6 +27,7 @@ function Parameters(
     cost = TrajectoryCost(stage_cost, terminal_cost)
     return Parameters(system, cost, integrator, N, Δt, xrefs, urefs, x0, mI)
 end
+
 
 """
 """
@@ -54,12 +55,45 @@ end
 function Solution(
     params::Parameters
 )::Solution
-    return Solution(params.system.nx, params.system.nu, params.N)
+    return Solution(params.sys.nx, params.sys.nu, params.N)
 end
+
+
+"""
+"""
+mutable struct NullTransition
+    val::Union{Transition, Nothing}
+end
+
+
+"""
+"""
+mutable struct HybridSchedule
+    modes::Vector{<:HybridMode}
+    trns::Vector{NullTransition}
+end
+
+function HybridSchedule(
+    sys::HybridSystem,
+    N::Int
+)::HybridSchedule
+    mode = first(values(sys.modes))
+    modes = [mode for k = 1:N]
+    trns = [NullTransition(nothing) for k = 1:(N-1)]
+    return HybridSchedule(modes, trns)
+end
+
+function HybridSchedule(
+    params::Parameters,
+)::HybridSchedule
+    return HybridSchedule(params.sys, params.N)
+end
+
 
 """
 """
 mutable struct ForwardTerms
+    sched::HybridSchedule
     xs::Vector{Vector{Float64}}
     us::Vector{Vector{Float64}}
     f̂s::Vector{Vector{Float64}}
@@ -67,21 +101,30 @@ mutable struct ForwardTerms
 end
 
 function ForwardTerms(
+    sys::HybridSystem,
     nx::Int,
     nu::Int,
     N::Int
 )::ForwardTerms
+    sched = HybridSchedule(sys, N)
     xs = [zeros(nx) for k = 1:N]
     us = [zeros(nu) for k = 1:(N-1)]
     f̂s = [zeros(nx) for k = 1:N]
     α = 1.0
-    return ForwardTerms(xs, us, f̂s, α)
+    return ForwardTerms(sched, xs, us, f̂s, α)
 end
+
+function ForwardTerms(
+    params::Parameters
+)::ForwardTerms
+    return ForwardTerms(params.sys, params.sys.nx, params.sys.nu, params.N)
+end
+
 
 """
 """
 mutable struct BackwardTerms
-    Ks::Vector{Matrix{Float64}}
+    Ks::Vector{VecOrMat{Float64}}
     ds::Vector{Vector{Float64}}
     ΔJ::Float64
 end
@@ -91,10 +134,16 @@ function BackwardTerms(
     nu::Int,
     N::Int
 )::BackwardTerms
-    Ks = [zeros(nu,nx) for k = 1:(N-1)]
+    Ks = [zeros(nu, nx) for k = 1:(N-1)]
     ds = [zeros(nu) for k = 1:(N-1)]
     ΔJ = 0.0
     return BackwardTerms(Ks, ds, ΔJ)
+end
+
+function BackwardTerms(
+    params::Parameters
+)::BackwardTerms
+    return BackwardTerms(params.sys.nx, params.sys.nu, params.N)
 end
 
 
@@ -103,8 +152,10 @@ end
 mutable struct CostExpansion
     Jx::Vector{Float64}
     Ju::Vector{Float64}
+
     Jxx::Matrix{Float64}
     Juu::Matrix{Float64}
+
     Jxx_result::DiffResults.DiffResult
     Juu_result::DiffResults.DiffResult
 end
@@ -122,6 +173,13 @@ function CostExpansion(
     return CostExpansion(Jx, Ju, Jxx, Juu, Jxx_result, Juu_result)
 end
 
+function CostExpansion(
+    params::Parameters
+)::CostExpansion
+    return CostExpansion(params.sys.nx, params.sys.nu)
+end
+
+
 """
 """
 mutable struct ActionValueExpansion
@@ -138,7 +196,6 @@ mutable struct ActionValueExpansion
     Qxx::Matrix{Float64}
     Quu::Matrix{Float64}
     Quu_reg::Matrix{Float64}
-
     Qxu::Matrix{Float64}
     Qux::Matrix{Float64}
 end
@@ -168,12 +225,20 @@ function ActionValueExpansion(
     )
 end
 
+function ActionValueExpansion(
+    params::Parameters
+)::ActionValueExpansion
+    return ActionValueExpansion(params.sys.nx, params.sys.nu)
+end
+
+
 """
 """
 mutable struct TemporaryArrays
     x::Vector{Float64}
     u::Vector{Float64}
-    xx::Matrix{Float64}
+    xx1::Matrix{Float64}
+    xx2::Matrix{Float64}
     uu::Matrix{Float64}
     xu::Matrix{Float64}
     ux::Matrix{Float64}
@@ -186,13 +251,21 @@ function TemporaryArrays(
 )::TemporaryArrays
     x = zeros(nx)
     u = zeros(nu)
-    xx = zeros(nx, nx)
+    xx1 = zeros(nx, nx)
+    xx2 = zeros(nx, nx)
     uu = zeros(nu, nu)
     xu = zeros(nx, nu)
     ux = zeros(nu, nx)
     lu_val = lu(sparse(I, nu, nu))
-    return TemporaryArrays(x, u, xx, uu, xu, ux, lu_val)
+    return TemporaryArrays(x, u, xx1, xx2, uu, xu, ux, lu_val)
 end
+
+function TemporaryArrays(
+    params::Parameters
+)::TemporaryArrays
+    return TemporaryArrays(params.sys.nx, params.sys.nu)
+end
+
 
 """
 """
@@ -205,20 +278,12 @@ mutable struct Cache
 end
 
 function Cache(
-    nx::Int,
-    nu::Int,
-    N::Int
-)::Cache
-    fwd = ForwardTerms(nx, nu, N)
-    bwd = BackwardTerms(nx, nu, N)
-    Jexp = CostExpansion(nx, nu)
-    Qexp = ActionValueExpansion(nx, nu)
-    tmp = TemporaryArrays(nx, nu)
-    return Cache(fwd, bwd, Jexp, Qexp, tmp)
-end
-
-function Cache(
     params::Parameters
 )::Cache
-    return Cache(params.system.nx, params.system.nu, params.N)
+    fwd = ForwardTerms(params)
+    bwd = BackwardTerms(params)
+    Jexp = CostExpansion(params)
+    Qexp = ActionValueExpansion(params)
+    tmp = TemporaryArrays(params)
+    return Cache(fwd, bwd, Jexp, Qexp, tmp)
 end

@@ -57,8 +57,8 @@ function expand_Q!(
 
     # Action-value hessians
     ## Qexp.Qxx .= Jexp.Jxx + Qexp.A'*Qexp.Vxx*Qexp.A
-    mul!(tmp.xx, Qexp.A', Qexp.Vxx)
-    mul!(Qexp.Qxx, tmp.xx, Qexp.A)
+    mul!(tmp.xx1, Qexp.A', Qexp.Vxx)
+    mul!(Qexp.Qxx, tmp.xx1, Qexp.A)
     Qexp.Qxx .+= Jexp.Jxx
 
     # Qexp.Quu .= Jexp.Juu + Qexp.B'*Qexp.Vxx*Qexp.B
@@ -67,8 +67,8 @@ function expand_Q!(
     Qexp.Quu .+= Jexp.Juu
 
     # Qexp.Qxu .= Qexp.A'*Qexp.Vxx*Qexp.B
-    mul!(tmp.xx, Qexp.A', Qexp.Vxx)
-    mul!(Qexp.Qxu, tmp.xx, Qexp.B)
+    mul!(tmp.xx1, Qexp.A', Qexp.Vxx)
+    mul!(Qexp.Qxu, tmp.xx1, Qexp.B)
 
     # Qexp.Qux .= Qexp.B'*Qexp.Vxx*Qexp.A
     mul!(tmp.ux, Qexp.B', Qexp.Vxx)
@@ -98,12 +98,12 @@ function expand_V!(
     # Cost-to-go hessian
     # Vxx = Qxx - K'*Qux + K'*Quu*K - Qxu*K
     Qexp.Vxx .= Qexp.Qxx
-    mul!(tmp.xx, K', Qexp.Qux)
-    Qexp.Vxx .-= tmp.xx
+    mul!(tmp.xx1, K', Qexp.Qux)
+    Qexp.Vxx .-= tmp.xx1
     mul!(tmp.xu, K', Qexp.Quu)
-    mul!(tmp.xx, tmp.xu, K)
-    Qexp.Vxx .+= tmp.xx
-    mul!(tmp.xx, Qexp.Qxu, K)
-    Qexp.Vxx .-= tmp.xx
+    mul!(tmp.xx1, tmp.xu, K)
+    Qexp.Vxx .+= tmp.xx1
+    mul!(tmp.xx1, Qexp.Qxu, K)
+    Qexp.Vxx .-= tmp.xx1
     return nothing
 end
