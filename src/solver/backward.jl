@@ -33,7 +33,7 @@ end
 
 """
 """
-function set_gains!(
+function update_gains!(
     K::VecOrMat{Float64},
     d::Vector{Float64},
     Qexp::ActionValueExpansion,
@@ -43,6 +43,7 @@ function set_gains!(
     # Regularized Quu: Qexp.Quu_reg = Qexp.Quu + μ*I
     mul!(Qexp.Quu_reg, μ, I)
     Qexp.Quu_reg .+= Qexp.Quu
+    #tmp.lu = lu!(Qexp.Quu_reg)
     tmp.lu = lu(sparse(Qexp.Quu_reg))
 
     # Feedback gains: bwd.Ks[k] .= Qexp.Quu_reg \ Qexp.Qux
@@ -81,7 +82,7 @@ function backward_pass!(
             sol.xs[k], sol.us[k])
 
         expand_Q!(Qexp, Jexp, tmp, sol.f̂s[k])
-        set_gains!(bwd.Ks[k], bwd.ds[k], Qexp, tmp, μ)
+        update_gains!(bwd.Ks[k], bwd.ds[k], Qexp, tmp, μ)
         expand_V!(Qexp, tmp, bwd.Ks[k], bwd.ds[k])
 
         # Change in cost

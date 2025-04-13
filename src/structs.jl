@@ -242,6 +242,7 @@ mutable struct TemporaryArrays
     uu::Matrix{Float64}
     xu::Matrix{Float64}
     ux::Matrix{Float64}
+    #lu::LU{Float64, Matrix{Float64}, Vector{Int64}}
     lu::SparseArrays.UMFPACK.UmfpackLU{Float64, Int64}
 end
 
@@ -256,6 +257,7 @@ function TemporaryArrays(
     uu = zeros(nu, nu)
     xu = zeros(nx, nu)
     ux = zeros(nu, nx)
+    #lu_val = lu!(diagm(ones(nu)))
     lu_val = lu(sparse(I, nu, nu))
     return TemporaryArrays(x, u, xx1, xx2, uu, xu, ux, lu_val)
 end
