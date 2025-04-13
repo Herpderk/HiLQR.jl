@@ -1,46 +1,56 @@
 """
 """
-function get_flow_jacobians!(
+function expand_dynamics!(
     Qexp::ActionValueExpansion,
+    tmp::TemporaryArrays,
     params::Parameters,
-    flow::Function,
+    trn::Union{Transition, Nothing},
+    mode::HybridMode,
     x::Vector{Float64},
     u::Vector{Float64}
 )::Nothing
-    ForwardDiff.jacobian!(
-        Qexp.A, δx -> params.integrator(flow, δx, u, params.Δt), x
-    )
-    ForwardDiff.jacobian!(
-        Qexp.B, δu -> params.integrator(flow, x, δu, params.Δt), u
-    )
+    if typeof(trn) == Transition
+        tmp.xx1 .= trn.saltation(x, u)
+
+        # Hybrid dynamics jacobian wrt x: salt * A
+        ForwardDiff.jacobian!(
+            tmp.xx2, δx -> params.igtr(mode.flow, δx, u, params.Δt), x)
+        mul!(Qexp.A, tmp.xx1, tmp.xx2)
+
+        # Hybrid dynamics jacobian wrt u: salt * B
+        ForwardDiff.jacobian!(
+            tmp.xu, δu -> params.igtr(mode.flow, x, δu, params.Δt), u)
+        mul!(Qexp.B, tmp.xx1, tmp.xu)
+
+    else
+        ForwardDiff.jacobian!(
+            Qexp.A, δx -> params.igtr(mode.flow, δx, u, params.Δt), x)
+        ForwardDiff.jacobian!(
+            Qexp.B, δu -> params.igtr(mode.flow, x, δu, params.Δt), u)
+    end
     return nothing
 end
 
 """
 """
-function update_backward_terms!(
-    bwd::BackwardTerms,
+function update_gains!(
+    K::VecOrMat{Float64},
+    d::Vector{Float64},
     Qexp::ActionValueExpansion,
     tmp::TemporaryArrays,
-    μ::Float64,
-    k::Int
+    μ::Float64
 )::Nothing
-    # Regularized Quu
-    # Qexp.Quu_reg = Qexp.Quu + μ*I
+    # Regularized Quu: Qexp.Quu_reg = Qexp.Quu + μ*I
     mul!(Qexp.Quu_reg, μ, I)
     Qexp.Quu_reg .+= Qexp.Quu
+    #tmp.lu = lu!(Qexp.Quu_reg)
     tmp.lu = lu(sparse(Qexp.Quu_reg))
 
-    # Feedback gains
-    #bwd.Ks[k] .= Qexp.Quu_reg \ Qexp.Qux
-    ldiv!(bwd.Ks[k], tmp.lu, Qexp.Qux)
+    # Feedback gains: bwd.Ks[k] .= Qexp.Quu_reg \ Qexp.Qux
+    ldiv!(K, tmp.lu, Qexp.Qux)
 
-    # Feedforward
-    #bwd.ds[k] .= Qexp.Quu_reg \ Qexp.Qu
-    ldiv!(bwd.ds[k], tmp.lu, Qexp.Qu)
-
-    # Change in cost
-    bwd.ΔJ += Qexp.Qu' * bwd.ds[k]
+    # Feedforward gains: bwd.ds[k] .= Qexp.Quu_reg \ Qexp.Qu
+    ldiv!(d, tmp.lu, Qexp.Qu)
     return nothing
 end
 
@@ -48,6 +58,7 @@ end
 """
 function backward_pass!(
     bwd::BackwardTerms,
+    fwd::ForwardTerms,
     Jexp::CostExpansion,
     Qexp::ActionValueExpansion,
     tmp::TemporaryArrays,
@@ -61,16 +72,21 @@ function backward_pass!(
     expand_terminal_cost!(Qexp, Jexp, params.cost, tmp.x)
 
     for k = (params.N-1) : -1 : 1
-        get_flow_jacobians!(
-            Qexp, params, params.system.modes[params.mI].flow,
-            sol.xs[k], sol.us[k]
-        )
         tmp.x .= sol.xs[k] .- params.xrefs[k]
         tmp.u .= sol.us[k] .- params.urefs[k]
         expand_stage_cost!(Jexp, params.cost, tmp.x, tmp.u)
+
+        expand_dynamics!(
+            Qexp, tmp, params,
+            fwd.sched.trns[k].val, fwd.sched.modes[k],
+            sol.xs[k], sol.us[k])
+
         expand_Q!(Qexp, Jexp, tmp, sol.f̂s[k])
-        update_backward_terms!(bwd, Qexp, tmp, μ, k)
+        update_gains!(bwd.Ks[k], bwd.ds[k], Qexp, tmp, μ)
         expand_V!(Qexp, tmp, bwd.Ks[k], bwd.ds[k])
+
+        # Change in cost
+        bwd.ΔJ += Qexp.Qu' * bwd.ds[k]
     end
     return nothing
 end

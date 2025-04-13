@@ -7,43 +7,49 @@ function nonlinear_rollout!(
     sol::Solution,
     params::Parameters
 )::Nothing
-    mI = params.system.modes[params.mI]
-
     for k = 1:(params.N-1)
-        x = fwd.xs[k]
-
-        # Reset and update mode if a guard is hit
-        for (transition, mJ) in mI.transitions
-            if transition.guard(x) <= 0.0
-                x = transition.reset(x)
-                mI = mJ
-                break
-            end
-        end
-
         #fwd.us[k] .= prev_us[k] + fwd.α*bwd.ds[k] + bwd.Ks[k]*(x - prev_xs[k])
-        #fwd.f̂s[k] .= params.integrator(mI.flow, x, u, params.Δt) - fwd.xs[k+1]
+        #fwd.f̂s[k] .= params.igtr(mI.flow, x, u, params.Δt) - fwd.xs[k+1]
 
         #c = 1 - fwd.α
         #x̂ = x - c*fwd.f̂s[k]
 
         # Get new input
-        # fwd.us[k] = sol.us[k] - fwd.α*bwd.ds[k] - bwd.Ks[k]*(x - sol.xs[k])
+        # fwd.us[k] = sol.us[k] - fwd.α*bwd.ds[k] - bwd.Ks[k]*(fwd.xs[k] - sol.xs[k])
         fwd.us[k] = sol.us[k]
         mul!(tmp.u, fwd.α, bwd.ds[k])
         fwd.us[k] -= tmp.u
-        tmp.x = x .- sol.xs[k]
+        tmp.x = fwd.xs[k] .- sol.xs[k]
         mul!(tmp.u, bwd.Ks[k], tmp.x)
         fwd.us[k] -= tmp.u
 
         # Roll out next state
-        fwd.xs[k+1] = params.integrator(mI.flow, x, fwd.us[k], params.Δt)
-        #fwd.xs[k+1] .= -c*fwd.f̂s[k] + params.integrator(
+        fwd.xs[k+1] = params.igtr(
+            fwd.sched.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt)
+        #fwd.xs[k+1] .= -c*fwd.f̂s[k] + params.igtr(
         #    mI.flow, x, fwd.us[k], params.Δt
         #)
 
+        # Reset and update mode if a guard is hit
+        Rflag = false
+        for (trn, mJ) in fwd.sched.modes[k].transitions
+            if trn.guard(fwd.xs[k+1]) < 0.0
+                fwd.xs[k+1] = trn.reset(fwd.xs[k+1])
+                fwd.sched.trns[k].val = trn
+                fwd.sched.modes[k+1] = mJ
+                Rflag = true
+                break
+            end
+        end
+
+        # Do not update mode if a guard is not hit
+        if !Rflag
+            fwd.sched.trns[k].val = nothing
+            fwd.sched.modes[k+1] = fwd.sched.modes[k]
+        end
+
         # Compute defects
-        fwd.f̂s[k] .= zeros(params.system.nx)
+        fwd.f̂s[k] .= zeros(params.sys.nx)
     end
     return nothing
 end
@@ -85,6 +91,7 @@ function init_forward_terms!(
     tmp::TemporaryArrays,
     params::Parameters
 )::Nothing
+    fwd.sched.modes[1] = params.sys.modes[params.mI]
     fwd.xs[1] = params.x0
     sol.xs[1] = params.x0
     sol.J = Inf

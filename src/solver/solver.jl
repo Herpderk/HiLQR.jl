@@ -7,13 +7,19 @@ function log(
     iter::Int
 )::Nothing
     if rem(iter-1, 20) == 0
-        println("------------------------------------------------")
-        println("iter       J          ΔJ         ‖f̂‖        α")
-        println("------------------------------------------------")
+        println("-----------------------------------------------------")
+        println(" iter      J          ΔJ         ‖f̂‖        α    trn")
+        println("-----------------------------------------------------")
     end
+
+    ntrn = 0
+    for trn in fwd.sched.trns
+        ntrn = !isnothing(trn.val) ? ntrn+1 : ntrn
+    end
+
     @printf(
-        "%3d    %9.2e  %9.2e  %9.2e   %6.4f\n",
-        iter, sol.J, bwd.ΔJ, sol.f̂norm, fwd.α
+        "%3d    %9.2e  %9.2e  %9.2e   %6.4f %3d\n",
+        iter, sol.J, bwd.ΔJ, sol.f̂norm, fwd.α, ntrn
     )
 end
 
@@ -53,7 +59,7 @@ function inner_solve!(
 
     # Main solve loop
     for i = 1:max_iter
-        backward_pass!(bwd, Jexp, Qexp, tmp, sol, params, regularizer)
+        backward_pass!(bwd, fwd, Jexp, Qexp, tmp, sol, params, regularizer)
         forward_pass!(sol, fwd, bwd, tmp, params, max_ls_iter)
 
         verbose ? log(sol, fwd, bwd, i) : nothing
