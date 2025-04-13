@@ -7,19 +7,19 @@ function log(
     iter::Int
 )::Nothing
     if rem(iter-1, 20) == 0
-        println("-----------------------------------------------------")
-        println(" iter      J          ΔJ         ‖f̂‖        α    trn")
-        println("-----------------------------------------------------")
+        println("--------------------------------------------------------")
+        println("iter        J          ΔJ        ‖f̂‖         α        τ")
+        println("--------------------------------------------------------")
     end
 
-    ntrn = 0
+    τ = 0
     for trn in fwd.sched.trns
-        ntrn = !isnothing(trn.val) ? ntrn+1 : ntrn
+        τ = !isnothing(trn.val) ? τ+1 : τ
     end
 
     @printf(
-        "%3d    %9.2e  %9.2e  %9.2e   %6.4f %3d\n",
-        iter, sol.J, bwd.ΔJ, sol.f̂norm, fwd.α, ntrn
+        "%4.04i     %8.2e   %8.2e   %8.2e   %8.2e   %3.03i\n",
+        iter, sol.J, bwd.ΔJ, sol.f̂norm, fwd.α, τ
     )
 end
 
@@ -80,7 +80,7 @@ function solve!(
     regularizer::Float64 = 1e-6,
     defect_tol::Float64 = 1e-6,
     stat_tol::Float64 = 1e-4,
-    max_iter::Int = 100,
+    max_iter::Int = 1000,
     max_ls_iter::Int = 10,
     verbose::Bool = true
 )::Nothing
@@ -103,7 +103,7 @@ function solve(
     regularizer::Float64 = 1e-6,
     defect_tol::Float64 = 1e-6,
     stat_tol::Float64 = 1e-4,
-    max_iter::Int = 100,
+    max_iter::Int = 1000,
     max_ls_iter::Int = 10,
     verbose::Bool = true
 )::Solution
