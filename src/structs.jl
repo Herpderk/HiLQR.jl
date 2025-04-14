@@ -68,32 +68,9 @@ end
 
 """
 """
-mutable struct HybridSchedule
-    modes::Vector{<:HybridMode}
-    trns::Vector{NullTransition}
-end
-
-function HybridSchedule(
-    sys::HybridSystem,
-    N::Int
-)::HybridSchedule
-    mode = first(values(sys.modes))
-    modes = [mode for k = 1:N]
-    trns = [NullTransition(nothing) for k = 1:(N-1)]
-    return HybridSchedule(modes, trns)
-end
-
-function HybridSchedule(
-    params::Parameters,
-)::HybridSchedule
-    return HybridSchedule(params.sys, params.N)
-end
-
-
-"""
-"""
 mutable struct ForwardTerms
-    sched::HybridSchedule
+    modes::Vector{HybridMode}
+    trns::Vector{NullTransition}
     xs::Vector{Vector{Float64}}
     us::Vector{Vector{Float64}}
     f̂s::Vector{Vector{Float64}}
@@ -106,12 +83,14 @@ function ForwardTerms(
     nu::Int,
     N::Int
 )::ForwardTerms
-    sched = HybridSchedule(sys, N)
+    mode = first(values(sys.modes))
+    modes = [mode for k = 1:N]
+    trns = [NullTransition(nothing) for k = 1:(N-1)]
     xs = [zeros(nx) for k = 1:N]
     us = [zeros(nu) for k = 1:(N-1)]
     f̂s = [zeros(nx) for k = 1:N]
     α = 1.0
-    return ForwardTerms(sched, xs, us, f̂s, α)
+    return ForwardTerms(modes, trns, xs, us, f̂s, α)
 end
 
 function ForwardTerms(

@@ -14,19 +14,23 @@ function expand_dynamics!(
 
         # Hybrid dynamics jacobian wrt x: salt * A
         ForwardDiff.jacobian!(
-            tmp.xx2, δx -> params.igtr(mode.flow, δx, u, params.Δt), x)
+            tmp.xx2, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
+        )
         mul!(Qexp.A, tmp.xx1, tmp.xx2)
 
         # Hybrid dynamics jacobian wrt u: salt * B
         ForwardDiff.jacobian!(
-            tmp.xu, δu -> params.igtr(mode.flow, x, δu, params.Δt), u)
+            tmp.xu, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
+        )
         mul!(Qexp.B, tmp.xx1, tmp.xu)
 
     else
         ForwardDiff.jacobian!(
-            Qexp.A, δx -> params.igtr(mode.flow, δx, u, params.Δt), x)
+            Qexp.A, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
+        )
         ForwardDiff.jacobian!(
-            Qexp.B, δu -> params.igtr(mode.flow, x, δu, params.Δt), u)
+            Qexp.B, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
+        )
     end
     return nothing
 end
@@ -78,8 +82,9 @@ function backward_pass!(
 
         expand_dynamics!(
             Qexp, tmp, params,
-            fwd.sched.trns[k].val, fwd.sched.modes[k],
-            sol.xs[k], sol.us[k])
+            fwd.trns[k].val, fwd.modes[k],
+            sol.xs[k], sol.us[k]
+        )
 
         expand_Q!(Qexp, Jexp, tmp, sol.f̂s[k])
         update_gains!(bwd.Ks[k], bwd.ds[k], Qexp, tmp, μ)

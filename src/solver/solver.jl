@@ -7,18 +7,18 @@ function log(
     iter::Int
 )::Nothing
     if rem(iter-1, 20) == 0
-        println("--------------------------------------------------------")
-        println("iter        J          ΔJ        ‖f̂‖         α        τ")
-        println("--------------------------------------------------------")
+        println("-------------------------------------------------------")
+        println("iter        J          ΔJ        ‖f̂‖         α       τ")
+        println("-------------------------------------------------------")
     end
 
     τ = 0
-    for trn in fwd.sched.trns
+    for trn in fwd.trns
         τ = !isnothing(trn.val) ? τ+1 : τ
     end
 
     @printf(
-        "%4.04i     %8.2e   %8.2e   %8.2e   %8.2e   %3.03i\n",
+        "%4.04i     %8.2e   %8.2e   %8.2e   %7.5f   %3.03i\n",
         iter, sol.J, bwd.ΔJ, sol.f̂norm, fwd.α, τ
     )
 end
@@ -64,12 +64,12 @@ function inner_solve!(
 
         verbose ? log(sol, fwd, bwd, i) : nothing
         if terminate(sol, bwd, defect_tol, stat_tol)
-            verbose ? println("Optimal solution found!") : nothing
+            verbose ? println("\nOptimal solution found!") : nothing
             return nothing
         end
     end
 
-    verbose ? println("Maximum iterations exceeded!") : nothing
+    verbose ? println("\nMaximum iterations exceeded!") : nothing
     return nothing
 end
 

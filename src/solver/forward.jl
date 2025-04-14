@@ -25,18 +25,18 @@ function nonlinear_rollout!(
 
         # Roll out next state
         fwd.xs[k+1] = params.igtr(
-            fwd.sched.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt)
+            fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt)
         #fwd.xs[k+1] .= -c*fwd.f̂s[k] + params.igtr(
         #    mI.flow, x, fwd.us[k], params.Δt
         #)
 
         # Reset and update mode if a guard is hit
         Rflag = false
-        for (trn, mJ) in fwd.sched.modes[k].transitions
+        for (trn, mJ) in fwd.modes[k].transitions
             if trn.guard(fwd.xs[k+1]) < 0.0
                 fwd.xs[k+1] = trn.reset(fwd.xs[k+1])
-                fwd.sched.trns[k].val = trn
-                fwd.sched.modes[k+1] = mJ
+                fwd.trns[k].val = trn
+                fwd.modes[k+1] = mJ
                 Rflag = true
                 break
             end
@@ -44,8 +44,8 @@ function nonlinear_rollout!(
 
         # Do not update mode if a guard is not hit
         if !Rflag
-            fwd.sched.trns[k].val = nothing
-            fwd.sched.modes[k+1] = fwd.sched.modes[k]
+            fwd.trns[k].val = nothing
+            fwd.modes[k+1] = fwd.modes[k]
         end
 
         # Compute defects
@@ -91,7 +91,7 @@ function init_forward_terms!(
     tmp::TemporaryArrays,
     params::Parameters
 )::Nothing
-    fwd.sched.modes[1] = params.sys.modes[params.mI]
+    fwd.modes[1] = params.sys.modes[params.mI]
     fwd.xs[1] = params.x0
     sol.xs[1] = params.x0
     sol.J = Inf
