@@ -64,12 +64,12 @@ function inner_solve!(
 
         verbose ? log(sol, fwd, bwd, i) : nothing
         if terminate(sol, bwd, defect_tol, stat_tol)
-            verbose ? println("Optimal solution found!") : nothing
+            verbose ? println("\nOptimal solution found!") : nothing
             return nothing
         end
     end
 
-    verbose ? println("Maximum iterations exceeded!") : nothing
+    verbose ? println("\nMaximum iterations exceeded!") : nothing
     return nothing
 end
 
