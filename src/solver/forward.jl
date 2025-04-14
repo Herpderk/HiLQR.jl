@@ -74,6 +74,7 @@ function forward_pass!(
         fwd.α *= 0.5
     end
 
+    fwd.ΔJ = abs(Jls - sol.J)
     sol.J = Jls
     sol.xs .= fwd.xs
     sol.us .= fwd.us

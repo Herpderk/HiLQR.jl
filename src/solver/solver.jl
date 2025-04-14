@@ -3,13 +3,12 @@
 function log(
     sol::Solution,
     fwd::ForwardTerms,
-    bwd::BackwardTerms,
     iter::Int
 )::Nothing
     if rem(iter-1, 20) == 0
-        println("-------------------------------------------------------")
-        println("iter        J          ΔJ        ‖f̂‖         α       τ")
-        println("-------------------------------------------------------")
+        println("--------------------------------------------------------")
+        println("iter        J          ΔJ         ‖f̂‖         α       τ")
+        println("--------------------------------------------------------")
     end
 
     τ = 0
@@ -19,7 +18,7 @@ function log(
 
     @printf(
         "%4.04i     %8.2e   %8.2e   %8.2e   %7.5f   %3.03i\n",
-        iter, sol.J, bwd.ΔJ, sol.f̂norm, fwd.α, τ
+        iter, sol.J, fwd.ΔJ, sol.f̂norm, fwd.α, τ
     )
 end
 
@@ -27,11 +26,11 @@ end
 """
 function terminate(
     sol::Solution,
-    bwd::BackwardTerms,
+    fwd::ForwardTerms,
     defect_tol::Float64,
     stat_tol::Float64
 )::Bool
-    return (sol.f̂norm < defect_tol) && (bwd.ΔJ < stat_tol)
+    return (sol.f̂norm < defect_tol) && (fwd.ΔJ < stat_tol)
 end
 
 """
@@ -62,8 +61,8 @@ function inner_solve!(
         backward_pass!(bwd, fwd, Jexp, Qexp, tmp, sol, params, regularizer)
         forward_pass!(sol, fwd, bwd, tmp, params, max_ls_iter)
 
-        verbose ? log(sol, fwd, bwd, i) : nothing
-        if terminate(sol, bwd, defect_tol, stat_tol)
+        verbose ? log(sol, fwd, i) : nothing
+        if terminate(sol, fwd, defect_tol, stat_tol)
             verbose ? println("\nOptimal solution found!") : nothing
             return nothing
         end
@@ -79,7 +78,7 @@ function solve!(
     params::Parameters;
     regularizer::Float64 = 1e-6,
     defect_tol::Float64 = 1e-6,
-    stat_tol::Float64 = 1e-4,
+    stat_tol::Float64 = 1e-6,
     max_iter::Int = 1000,
     max_ls_iter::Int = 10,
     verbose::Bool = true
@@ -102,7 +101,7 @@ function solve(
     params::Parameters;
     regularizer::Float64 = 1e-6,
     defect_tol::Float64 = 1e-6,
-    stat_tol::Float64 = 1e-4,
+    stat_tol::Float64 = 1e-6,
     max_iter::Int = 1000,
     max_ls_iter::Int = 10,
     verbose::Bool = true
