@@ -7,11 +7,10 @@ function nonlinear_rollout!(
     sol::Solution,
     params::Parameters
 )::Nothing
-    for k = 1:(params.N-1)
+    @inbounds for k = 1:(params.N-1)
         #fwd.us[k] .= prev_us[k] + fwd.α*bwd.ds[k] + bwd.Ks[k]*(x - prev_xs[k])
         #fwd.f̂s[k] .= params.igtr(mI.flow, x, u, params.Δt) - fwd.xs[k+1]
 
-        #c = 1 - fwd.α
         #x̂ = x - c*fwd.f̂s[k]
 
         # Get new input
@@ -23,13 +22,13 @@ function nonlinear_rollout!(
         mul!(tmp.u, bwd.Ks[k], tmp.x)
         fwd.us[k] -= tmp.u
 
+        # Compute defects
+        fwd.f̂s[k] = (1-fwd.α) * sol.f̂s[k]
+
         # Roll out next state
-        fwd.xs[k+1] = params.igtr(
+        fwd.xs[k+1] = -fwd.f̂s[k] + params.igtr(
             fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt
         )
-        #fwd.xs[k+1] .= -c*fwd.f̂s[k] + params.igtr(
-        #    mI.flow, x, fwd.us[k], params.Δt
-        #)
 
         # Reset and update mode if a guard is hit
         Rflag = false
@@ -48,9 +47,6 @@ function nonlinear_rollout!(
             fwd.trns[k].val = nothing
             fwd.modes[k+1] = fwd.modes[k]
         end
-
-        # Compute defects
-        fwd.f̂s[k] .= zeros(params.sys.nx)
     end
     return nothing
 end
@@ -63,9 +59,11 @@ function forward_pass!(
     bwd::BackwardTerms,
     tmp::TemporaryArrays,
     params::Parameters,
-    ls_iter::Int
+    ls_iter::Int,
+    αmax::Float64,
+    multishoot::Bool
 )::Nothing
-    fwd.α = 1.0
+    fwd.α = multishoot ? clamp(αmax, 0.0, 1.0) : 1.0
     Jls = 0.0
 
     for i = 1:ls_iter
@@ -86,17 +84,39 @@ end
 
 """
 """
-function init_forward_terms!(
+function init_terms!(
     sol::Solution,
     fwd::ForwardTerms,
     bwd::BackwardTerms,
     tmp::TemporaryArrays,
-    params::Parameters
+    params::Parameters,
+    αmax::Float64,
+    multishoot::Bool
 )::Nothing
     fwd.modes[1] = params.sys.modes[params.mI]
     fwd.xs[1] = params.x0
     sol.xs[1] = params.x0
-    sol.J = Inf
-    forward_pass!(sol, fwd, bwd, tmp, params, 1)
+
+    @inbounds @simd for k = 1:(params.N-1)
+        fill!(bwd.Ks[k], 0.0)
+        fill!(bwd.ds[k], 0.0)
+    end
+
+    if multishoot
+        # Initialize defects
+        sol.J = params.cost(params.xrefs, params.urefs, sol.xs, sol.us)
+        @inbounds for k = 1:(params.N-1)
+            sol.f̂s[k] .= sol.xs[k+1] - params.igtr(
+                fwd.modes[1].flow, sol.xs[k], sol.us[k], params.Δt
+            )
+        end
+    else
+        # Roll out with a full newton step
+        sol.J = Inf
+        @inbounds for k = 1:(params.N-1)
+            fill!(sol.f̂s[k], 0.0)
+        end
+        forward_pass!(sol, fwd, bwd, tmp, params, 1, αmax, false)
+    end
     return nothing
 end
