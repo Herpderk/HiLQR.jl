@@ -80,7 +80,7 @@ function solve!(
     defect_tol::Float64 = 1e-6,
     stat_tol::Float64 = 1e-6,
     max_iter::Int = 1000,
-    max_ls_iter::Int = 10,
+    max_ls_iter::Int = 20,
     verbose::Bool = true
 )::Nothing
     inner_solve!(
@@ -103,7 +103,7 @@ function solve(
     defect_tol::Float64 = 1e-6,
     stat_tol::Float64 = 1e-6,
     max_iter::Int = 1000,
-    max_ls_iter::Int = 10,
+    max_ls_iter::Int = 20,
     verbose::Bool = true
 )::Solution
     sol = Solution(params)
