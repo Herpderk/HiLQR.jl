@@ -75,6 +75,7 @@ mutable struct ForwardTerms
     us::Vector{Vector{Float64}}
     f̂s::Vector{Vector{Float64}}
     α::Float64
+    ΔJ::Float64
 end
 
 function ForwardTerms(
@@ -90,7 +91,8 @@ function ForwardTerms(
     us = [zeros(nu) for k = 1:(N-1)]
     f̂s = [zeros(nx) for k = 1:N]
     α = 1.0
-    return ForwardTerms(modes, trns, xs, us, f̂s, α)
+    ΔJ = Inf
+    return ForwardTerms(modes, trns, xs, us, f̂s, α, ΔJ)
 end
 
 function ForwardTerms(
@@ -115,7 +117,7 @@ function BackwardTerms(
 )::BackwardTerms
     Ks = [zeros(nu, nx) for k = 1:(N-1)]
     ds = [zeros(nu) for k = 1:(N-1)]
-    ΔJ = 0.0
+    ΔJ = Inf
     return BackwardTerms(Ks, ds, ΔJ)
 end
 
