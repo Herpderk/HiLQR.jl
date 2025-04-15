@@ -25,7 +25,8 @@ function nonlinear_rollout!(
 
         # Roll out next state
         fwd.xs[k+1] = params.igtr(
-            fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt)
+            fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt
+        )
         #fwd.xs[k+1] .= -c*fwd.f̂s[k] + params.igtr(
         #    mI.flow, x, fwd.us[k], params.Δt
         #)
