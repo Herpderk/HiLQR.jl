@@ -7,12 +7,11 @@ function nonlinear_rollout!(
     sol::Solution,
     params::Parameters
 )::Nothing
+    # Defect closure rate
+    c = 1 - fwd.α
+
+    # Forward roll-out
     @inbounds for k = 1:(params.N-1)
-        #fwd.us[k] .= prev_us[k] + fwd.α*bwd.ds[k] + bwd.Ks[k]*(x - prev_xs[k])
-        #fwd.f̂s[k] .= params.igtr(mI.flow, x, u, params.Δt) - fwd.xs[k+1]
-
-        #x̂ = x - c*fwd.f̂s[k]
-
         # Get new input
         # fwd.us[k] = sol.us[k] - fwd.α*bwd.ds[k] - bwd.Ks[k]*(fwd.xs[k] - sol.xs[k])
         fwd.us[k] = sol.us[k]
@@ -22,19 +21,14 @@ function nonlinear_rollout!(
         mul!(tmp.u, bwd.Ks[k], tmp.x)
         fwd.us[k] -= tmp.u
 
-        # Compute defects
-        fwd.f̂s[k] = (1-fwd.α) * sol.f̂s[k]
-
-        # Roll out next state
-        fwd.xs[k+1] = -fwd.f̂s[k] + params.igtr(
-            fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt
-        )
+        # Integrate smooth dynamics
+        tmp.x .= params.igtr(fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt)
 
         # Reset and update mode if a guard is hit
         Rflag = false
         for (trn, mJ) in fwd.modes[k].transitions
             if trn.guard(fwd.xs[k+1]) < 0.0
-                fwd.xs[k+1] = trn.reset(fwd.xs[k+1])
+                fwd.xs[k+1] = trn.reset(tmp.x)
                 fwd.trns[k].val = trn
                 fwd.modes[k+1] = mJ
                 Rflag = true
@@ -44,9 +38,14 @@ function nonlinear_rollout!(
 
         # Do not update mode if a guard is not hit
         if !Rflag
+            fwd.xs[k+1] = tmp.x
             fwd.trns[k].val = nothing
             fwd.modes[k+1] = fwd.modes[k]
         end
+
+        # Compute defects and roll out next state
+        mul!(fwd.f̂s[k], sol.f̂s[k], c)
+        fwd.xs[k+1] -= fwd.f̂s[k]
     end
     return nothing
 end
