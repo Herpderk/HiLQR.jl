@@ -27,7 +27,7 @@ function nonlinear_rollout!(
         # Reset and update mode if a guard is hit
         Rflag = false
         for (trn, mJ) in fwd.modes[k].transitions
-            if trn.guard(fwd.xs[k+1]) < 0.0
+            if trn.guard(tmp.x) < 0.0
                 fwd.xs[k+1] = trn.reset(tmp.x)
                 fwd.trns[k].val = trn
                 fwd.modes[k+1] = mJ
