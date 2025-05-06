@@ -27,8 +27,8 @@ function nonlinear_rollout!(
         # Reset and update mode if a guard is hit
         Rflag = false
         for (trn, mJ) in fwd.modes[k].transitions
-            if trn.guard(tmp.x) <= 0.0
-                fwd.xs[k+1] = trn.reset(tmp.x)
+            if trn.guard(tmp.x) < 0.0
+                tmp.x = trn.reset(tmp.x)
                 fwd.trns[k].val = trn
                 fwd.modes[k+1] = mJ
                 Rflag = true
@@ -38,14 +38,13 @@ function nonlinear_rollout!(
 
         # Do not update mode if a guard is not hit
         if !Rflag
-            fwd.xs[k+1] = tmp.x
             fwd.trns[k].val = nothing
             fwd.modes[k+1] = fwd.modes[k]
         end
 
         # Compute defects and roll out next state
         mul!(fwd.f̂s[k], sol.f̂s[k], c)
-        fwd.xs[k+1] -= fwd.f̂s[k]
+        fwd.xs[k+1] = tmp.x - fwd.f̂s[k]
     end
     return nothing
 end
@@ -69,6 +68,7 @@ function forward_pass!(
         nonlinear_rollout!(fwd, bwd, tmp, sol, params)
         Jls = params.cost(params.xrefs, params.urefs, fwd.xs, fwd.us)
         Jls < sol.J ? break : nothing
+        #Jls < sol.J - 1e-2*fwd.α*bwd.ΔJ ? break : nothing
         fwd.α *= 0.5
     end
 
@@ -105,16 +105,14 @@ function init_terms!(
         # Initialize defects
         sol.J = params.cost(params.xrefs, params.urefs, sol.xs, sol.us)
         @inbounds for k = 1:(params.N-1)
-            sol.f̂s[k] .= sol.xs[k+1] - params.igtr(
+            sol.f̂s[k] .= -sol.xs[k+1] + params.igtr(
                 fwd.modes[1].flow, sol.xs[k], sol.us[k], params.Δt
             )
         end
     else
         # Roll out with a full newton step
         sol.J = Inf
-        @inbounds for k = 1:(params.N-1)
-            fill!(sol.f̂s[k], 0.0)
-        end
+        fill!(sol.f̂s, zeros(params.sys.nx))
         forward_pass!(sol, fwd, bwd, tmp, params, 1, αmax, false)
     end
     return nothing
