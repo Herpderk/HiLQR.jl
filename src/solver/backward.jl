@@ -75,7 +75,7 @@ function backward_pass!(
     tmp.x .= sol.xs[end] .- params.xrefs[end]
     expand_terminal_cost!(Qexp, Jexp, params.cost, tmp.x)
 
-    for k = (params.N-1) : -1 : 1
+    @inbounds for k = (params.N-1) : -1 : 1
         tmp.x .= sol.xs[k] .- params.xrefs[k]
         tmp.u .= sol.us[k] .- params.urefs[k]
         expand_stage_cost!(Jexp, params.cost, tmp.x, tmp.u)
