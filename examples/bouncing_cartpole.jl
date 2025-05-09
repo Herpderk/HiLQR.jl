@@ -25,8 +25,8 @@ function animate_cartpole(xs::Vector{Vector{Float64}}, qmin, qmax, l, w, draw_wa
         plot!(p, x_cart, y_cart, lw=2, fillalpha=0.4, color=:blue)
         plot!(p, pole_x, pole_y, lw=3, color=:black)
         scatter!(p, [q_c], [0], color=:black, markersize=4)
-        
-        if (draw_walls) 
+
+        if (draw_walls)
             vline!(p, [qmin, qmax], lw=1, lc=:red, linestyle=:dash)
         end
 
@@ -41,19 +41,19 @@ Cartpole Model
 """
 
 function bouncing_cartpole_model(
-    mc::Float64, 
-    mp::Float64, 
+    mc::Float64,
+    mp::Float64,
     l::Float64, # pole length
     w::Float64, # cart width
-    qmin::Float64, 
-    qmax::Float64, 
+    qmin::Float64,
+    qmax::Float64,
     e::Float64,
     g::Float64 = 9.81
 )::HybridSystem
 
     nx = 4  # state dimension
     nu = 1  # control input: force on cart
-    
+
     function cartpole_flow(x::Vector, u::Vector)::Vector
         θ = x[2]
         θ̇ = x[4]
@@ -90,12 +90,14 @@ function bouncing_cartpole_model(
     # --- Resets (bounce by flipping velocity components) ---
     function bounce_cart_left(x)
         x_new = copy(x)
+        x_new[1] = qmin + w/2 + 1e-9
         x_new[3] = -e * x[3]  # flip cart velocity
         return x_new
     end
 
     function bounce_cart_right(x)
         x_new = copy(x)
+        x_new[1] = qmax - w/2 - 1e-9
         x_new[3] = -e * x[3]
         return x_new
     end
@@ -128,40 +130,6 @@ function bouncing_cartpole_model(
 end
 
 """
-Cartpole Model
-"""
-
-function get_cartpole_model(
-    mc::Float64,
-    mp::Float64,
-    l::Float64,
-    g::Float64 = 9.81
-)::HybridSystem
-    # States: cart position, pole angle, cart velocity, pole angular velocity
-    function cartpole_flow(x::Vector, u::Vector)::Vector
-        θ = x[2]
-        θ̇ = x[4]
-
-        M = [mc+mp mp*l*cos(θ); mp*l*cos(θ) mp*l^2]
-        C = [0.0 -mp*l*θ̇*sin(θ); zeros(1, 2)]
-        τ = [0, -mp*g*l*sin(θ)]
-        B = [1.0, 0.0]
-
-        q̇ = x[3:4]
-        q̈ = M \ (τ + B*u[1] - C*q̇)
-        return [q̇; q̈]
-    end
-
-    # Return HybridSystem
-    nx = 4
-    nu = 1
-    mI = HybridMode(cartpole_flow)
-    modes = Dict(:nominal => mI)
-    transitions = Dict(Tuple{Symbol, Transition}[])
-    return HybridSystem(nx, nu, transitions, modes)
-end
-
-"""
 Solver Setup
 """
 
@@ -169,17 +137,17 @@ mc = 1.2
 mp = 0.16
 l = 0.55
 w = 0.4
-qmin = -0.5
-qmax = 5.0
-e = 1.0
+qmin = -0.8
+qmax = 0.8
+e = 0.5
 
 # system = get_cartpole_model(mc, mp, l)
 system = bouncing_cartpole_model(mc, mp, l, w, qmin, qmax, e)
 
 # Stage and terminal costs
-Q = 1e-4 * diagm([0.1, 1.0, 1.0, 1.0])
-R = 1e-6* I(system.nu)
-Qf = 1e2 * Q
+Q = 1e-4 * diagm([1e-2, 1.0, 1.0, 1.0])
+R = 1e-6 * I(system.nu)
+Qf = 2e+3 * Q
 stage(x, u) = x'*Q*x + u'*R*u
 terminal(x) = x'*Qf*x
 
@@ -187,8 +155,8 @@ terminal(x) = x'*Qf*x
 rk4 = ExplicitIntegrator(:rk4)
 
 # Problem parameters
-N = 100
-Δt = 0.05
+N = 50
+Δt = 0.1
 params = SiLQR.Parameters(system, stage, terminal, rk4, N, Δt)
 
 # Reference trajectory
@@ -198,7 +166,7 @@ uref = zeros(system.nu)
 params.xrefs = [xref for k = 1:N]
 params.urefs = [uref for k = 1:(N-1)]
 
-params.x0 = [0.0, 0.0, 0.0, 0.0]
+params.x0 = zeros(system.nx)
 params.mI = :free
 
 """
@@ -206,8 +174,10 @@ Solve using SiLQR
 """
 
 sol = SiLQR.Solution(params)
+sol.xs .= [[qmin + w/2; zeros(3)] for k = 1:N]
+
 cache = SiLQR.Cache(params)
-@time SiLQR.solve!(sol, cache, params)
+@time SiLQR.solve!(sol, cache, params; multishoot=true, αmax=0.95, stat_tol=1e-8, max_iter=300)
 
 animate_cartpole(sol.xs, qmin, qmax, l, w, true; filename="my_bouncing_cartpole.gif")
 

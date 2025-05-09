@@ -77,7 +77,7 @@ function forward_pass!(
     sol.xs .= fwd.xs
     sol.us .= fwd.us
     sol.f̂s .= fwd.f̂s
-    sol.f̂norm = norm(sol.f̂s, Inf)
+    sol.f̂norm = norm(norm.(sol.f̂s, Inf), Inf)
     return nothing
 end
 
