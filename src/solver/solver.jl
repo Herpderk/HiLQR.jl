@@ -7,7 +7,7 @@ function log(
 )::Nothing
     if rem(iter-1, 20) == 0
         println("-------------------------------------------------------")
-        println("iter        J          ΔJ         ‖f̂‖         α      τ")
+        println("iter        J          ΔJ         ‖f̂‖        α       τ")
         println("-------------------------------------------------------")
     end
 
@@ -39,10 +39,10 @@ function inner_solve!(
     sol::Solution,
     cache::Cache,
     params::Parameters,
-    regularizer::Float64,
-    defect_tol::Float64,
-    stat_tol::Float64,
     αmax::Float64,
+    reg::Float64,
+    stat_tol::Float64,
+    defect_tol::Float64,
     max_iter::Int,
     max_ls_iter::Int,
     multishoot::Bool,
@@ -60,7 +60,7 @@ function inner_solve!(
 
     # Main solve loop
     for i = 1:max_iter
-        backward_pass!(bwd, fwd, Jexp, Qexp, tmp, sol, params, regularizer)
+        backward_pass!(bwd, fwd, Jexp, Qexp, tmp, sol, params, reg)
         forward_pass!(sol, fwd, bwd, tmp, params, max_ls_iter, αmax, multishoot)
 
         verbose ? log(sol, fwd, i) : nothing
@@ -78,10 +78,10 @@ function solve!(
     sol::Solution,
     cache::Cache,
     params::Parameters;
-    regularizer::Float64 = 1e-6,
-    defect_tol::Float64 = 1e-6,
-    stat_tol::Float64 = 1e-6,
     αmax::Float64 = 1.0,
+    reg::Float64 = 1e-6,
+    stat_tol::Float64 = 1e-6,
+    defect_tol::Float64 = 1e-12,
     max_iter::Int = 1000,
     max_ls_iter::Int = 20,
     multishoot::Bool = false,
@@ -92,10 +92,10 @@ function solve!(
         sol,
         cache,
         params,
-        regularizer,
-        defect_tol,
-        stat_tol,
         αmax,
+        reg,
+        stat_tol,
+        defect_tol,
         max_iter,
         max_ls_iter,
         multishoot,
@@ -106,10 +106,10 @@ end
 
 function solve(
     params::Parameters;
-    regularizer::Float64 = 1e-6,
-    defect_tol::Float64 = 1e-6,
-    stat_tol::Float64 = 1e-6,
     αmax::Float64 = 1.0,
+    reg::Float64 = 1e-6,
+    stat_tol::Float64 = 1e-6,
+    defect_tol::Float64 = 1e-12,
     max_iter::Int = 1000,
     max_ls_iter::Int = 20,
     multishoot::Bool = false,
@@ -121,9 +121,9 @@ function solve(
         sol,
         cache,
         params,
-        regularizer,
-        defect_tol,
+        reg,
         stat_tol,
+        defect_tol,
         αmax,
         max_iter,
         max_ls_iter,
