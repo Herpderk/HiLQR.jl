@@ -7,7 +7,7 @@ function log(
 )::Nothing
     if rem(iter-1, 20) == 0
         println("-------------------------------------------------------")
-        println("iter        J          ΔJ         ‖f̂‖        α       τ")
+        println("iter        J          ΔJ         ‖f̃‖        α       τ")
         println("-------------------------------------------------------")
     end
 
@@ -18,7 +18,7 @@ function log(
 
     @printf(
         "%4.04i     %8.2e   %8.2e   %8.2e   %7.5f   %3.03i\n",
-        iter, sol.J, fwd.ΔJ, sol.f̂norm, fwd.α, τ
+        iter, sol.J, fwd.ΔJ, sol.f̃norm, fwd.α, τ
     )
 end
 
@@ -30,7 +30,7 @@ function terminate(
     defect_tol::Float64,
     stat_tol::Float64
 )::Bool
-    return (sol.f̂norm < defect_tol) && (fwd.ΔJ < stat_tol)
+    return (sol.f̃norm < defect_tol) && (fwd.ΔJ < stat_tol)
 end
 
 """

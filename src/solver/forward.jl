@@ -43,8 +43,8 @@ function nonlinear_rollout!(
         end
 
         # Compute defects and roll out next state
-        mul!(fwd.f̂s[k], sol.f̂s[k], c)
-        fwd.xs[k+1] = tmp.x - fwd.f̂s[k]
+        mul!(fwd.f̃s[k], sol.f̃s[k], c)
+        fwd.xs[k+1] = tmp.x - fwd.f̃s[k]
     end
     return nothing
 end
@@ -76,8 +76,8 @@ function forward_pass!(
     sol.J = Jls
     sol.xs .= fwd.xs
     sol.us .= fwd.us
-    sol.f̂s .= fwd.f̂s
-    sol.f̂norm = norm(norm.(sol.f̂s, Inf), Inf)
+    sol.f̃s .= fwd.f̃s
+    sol.f̃norm = norm(norm.(sol.f̃s, Inf), Inf)
     return nothing
 end
 
@@ -105,14 +105,14 @@ function init_terms!(
         # Initialize defects
         sol.J = params.cost(params.xrefs, params.urefs, sol.xs, sol.us)
         @inbounds for k = 1:(params.N-1)
-            sol.f̂s[k] .= -sol.xs[k+1] + params.igtr(
+            sol.f̃s[k] .= -sol.xs[k+1] + params.igtr(
                 fwd.modes[1].flow, sol.xs[k], sol.us[k], params.Δt
             )
         end
     else
         # Roll out with a full newton step
         sol.J = Inf
-        fill!(sol.f̂s, zeros(params.sys.nx))
+        fill!(sol.f̃s, zeros(params.sys.nx))
         forward_pass!(sol, fwd, bwd, tmp, params, 1, αmax, false)
     end
     return nothing

@@ -39,11 +39,11 @@ function expand_Q!(
     Qexp::ActionValueExpansion,
     Jexp::CostExpansion,
     tmp::TemporaryArrays,
-    f̂::Vector{Float64}
+    f̃::Vector{Float64}
 )::Nothing
     # Cost-to-go gradient with defects
-    # Qexp.V̂x .= Qexp.Vx + Qexp.Vxx*f̂
-    mul!(Qexp.V̂x, Qexp.Vxx, f̂)
+    # Qexp.V̂x .= Qexp.Vx + Qexp.Vxx*f̃
+    mul!(Qexp.V̂x, Qexp.Vxx, f̃)
     Qexp.V̂x .+= Qexp.Vx
 
     # Action-value gradients

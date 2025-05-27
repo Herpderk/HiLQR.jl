@@ -86,7 +86,7 @@ function backward_pass!(
             sol.xs[k], sol.us[k]
         )
 
-        expand_Q!(Qexp, Jexp, tmp, sol.f̂s[k])
+        expand_Q!(Qexp, Jexp, tmp, sol.f̃s[k])
         update_gains!(bwd.Ks[k], bwd.ds[k], Qexp, tmp, μ)
         expand_V!(Qexp, tmp, bwd.Ks[k], bwd.ds[k])
 

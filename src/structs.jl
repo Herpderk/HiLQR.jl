@@ -34,8 +34,8 @@ end
 mutable struct Solution
     xs::Vector{Vector{Float64}}
     us::Vector{Vector{Float64}}
-    f̂s::Vector{Vector{Float64}}
-    f̂norm::Float64
+    f̃s::Vector{Vector{Float64}}
+    f̃norm::Float64
     J::Float64
 end
 
@@ -46,10 +46,10 @@ function Solution(
 )::Solution
     xs = [zeros(nx) for k = 1:N]
     us = [zeros(nu) for k = 1:(N-1)]
-    f̂s = [zeros(nx) for k = 1:N]
-    f̂norm = 0.0
+    f̃s = [zeros(nx) for k = 1:N]
+    f̃norm = 0.0
     J = 0.0
-    return Solution(xs, us, f̂s, f̂norm, J)
+    return Solution(xs, us, f̃s, f̃norm, J)
 end
 
 function Solution(
@@ -73,7 +73,7 @@ mutable struct ForwardTerms
     trns::Vector{NullTransition}
     xs::Vector{Vector{Float64}}
     us::Vector{Vector{Float64}}
-    f̂s::Vector{Vector{Float64}}
+    f̃s::Vector{Vector{Float64}}
     α::Float64
     ΔJ::Float64
 end
@@ -89,10 +89,10 @@ function ForwardTerms(
     trns = [NullTransition(nothing) for k = 1:(N-1)]
     xs = [zeros(nx) for k = 1:N]
     us = [zeros(nu) for k = 1:(N-1)]
-    f̂s = [zeros(nx) for k = 1:N]
+    f̃s = [zeros(nx) for k = 1:N]
     α = 1.0
     ΔJ = Inf
-    return ForwardTerms(modes, trns, xs, us, f̂s, α, ΔJ)
+    return ForwardTerms(modes, trns, xs, us, f̃s, α, ΔJ)
 end
 
 function ForwardTerms(
