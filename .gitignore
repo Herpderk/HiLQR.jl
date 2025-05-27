@@ -36,3 +36,6 @@ ipython_config.py
 
 # VSCode
 .vscode
+
+# Gifs
+*.gif
