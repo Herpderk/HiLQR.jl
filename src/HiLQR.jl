@@ -1,4 +1,4 @@
-module SiLQR
+module HiLQR
 
 using LinearAlgebra
 using SparseArrays
@@ -21,4 +21,4 @@ include("solver/backward.jl")
 include("solver/forward.jl")
 include("solver/solver.jl")
 
-end # module SiLQR
+end # module HiLQR

@@ -1,4 +1,4 @@
-# SiLQR.jl
+# HiLQR.jl
 
 Single and Multiple-Shooting iLQR for free-sequence hybrid trajectory optimization.
 

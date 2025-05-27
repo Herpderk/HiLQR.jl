@@ -1,4 +1,4 @@
-name = "SiLQR"
+name = "HiLQR"
 uuid = "cd701fe8-22e1-4d0d-9413-952c99722b92"
 authors = ["Derek Fan <derekfan.18.2002@gmail.com>"]
 version = "0.1.0"
