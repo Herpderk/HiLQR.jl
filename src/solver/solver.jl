@@ -80,13 +80,12 @@ function solve!(
     params::Parameters;
     αmax::Float64 = 1.0,
     reg::Float64 = 1e-6,
-    stat_tol::Float64 = 1e-6,
-    defect_tol::Float64 = 1e-12,
+    stat_tol::Float64 = 1e-9,
+    defect_tol::Float64 = 1e-9,
     max_iter::Int = 1000,
     max_ls_iter::Int = 20,
     multishoot::Bool = false,
     verbose::Bool = true,
-
 )::Nothing
     inner_solve!(
         sol,
@@ -106,29 +105,10 @@ end
 
 function solve(
     params::Parameters;
-    αmax::Float64 = 1.0,
-    reg::Float64 = 1e-6,
-    stat_tol::Float64 = 1e-6,
-    defect_tol::Float64 = 1e-12,
-    max_iter::Int = 1000,
-    max_ls_iter::Int = 20,
-    multishoot::Bool = false,
-    verbose::Bool = true
+    options...
 )::Solution
     sol = Solution(params)
     cache = Cache(params)
-    inner_solve!(
-        sol,
-        cache,
-        params,
-        reg,
-        stat_tol,
-        defect_tol,
-        αmax,
-        max_iter,
-        max_ls_iter,
-        multishoot,
-        verbose
-    )
+    solve!(sol, cache, params, options...)
     return sol
 end
