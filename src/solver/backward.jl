@@ -62,32 +62,36 @@ end
 """
 """
 function backward_pass!(
-    bwd::BackwardTerms,
     fwd::ForwardTerms,
-    Jexp::CostExpansion,
-    Qexp::ActionValueExpansion,
+    bwd::BackwardTerms,
     tmp::TemporaryArrays,
-    sol::Solution,
     params::Parameters,
     μ::Float64
     #sequence::Vector{TransitionTiming}, # TODO
 )::Nothing
+    # Reference expansion structs
+    Jexp = bwd.Jexp
+    Qexp = bwd.Qexp
+
+    # Reset predicted change in cost
     bwd.ΔJ = 0.0
-    tmp.x .= sol.xs[end] .- params.xrefs[end]
+
+    # Initialize value expansion
+    tmp.x .= fwd.xs[end] .- params.xrefs[end]
     expand_terminal_cost!(Qexp, Jexp, params.cost, tmp.x)
 
     @inbounds for k = (params.N-1) : -1 : 1
-        tmp.x .= sol.xs[k] .- params.xrefs[k]
-        tmp.u .= sol.us[k] .- params.urefs[k]
+        tmp.x .= fwd.xs[k] .- params.xrefs[k]
+        tmp.u .= fwd.us[k] .- params.urefs[k]
         expand_stage_cost!(Jexp, params.cost, tmp.x, tmp.u)
 
         expand_dynamics!(
             Qexp, tmp, params,
             fwd.trns[k].val, fwd.modes[k],
-            sol.xs[k], sol.us[k]
+            fwd.xs[k], fwd.us[k]
         )
 
-        expand_Q!(Qexp, Jexp, tmp, sol.f̃s[k])
+        expand_Q!(Qexp, Jexp, tmp, fwd.f̃s[k])
         update_gains!(bwd.Ks[k], bwd.ds[k], Qexp, tmp, μ)
         expand_V!(Qexp, tmp, bwd.Ks[k], bwd.ds[k])
 

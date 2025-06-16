@@ -51,8 +51,6 @@ function inner_solve!(
     # References to cache attributes
     fwd = cache.fwd
     bwd = cache.bwd
-    Jexp = cache.Jexp
-    Qexp = cache.Qexp
     tmp = cache.tmp
 
     # Initial roll-out
@@ -60,7 +58,7 @@ function inner_solve!(
 
     # Main solve loop
     for i = 1:max_iter
-        backward_pass!(bwd, fwd, Jexp, Qexp, tmp, sol, params, reg)
+        backward_pass!(fwd, bwd, tmp, params, reg)
         forward_pass!(sol, fwd, bwd, tmp, params, max_ls_iter, αmax, multishoot)
 
         verbose ? log(sol, fwd, i) : nothing

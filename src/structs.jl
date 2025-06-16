@@ -104,32 +104,6 @@ end
 
 """
 """
-mutable struct BackwardTerms
-    Ks::Vector{VecOrMat{Float64}}
-    ds::Vector{Vector{Float64}}
-    ΔJ::Float64
-end
-
-function BackwardTerms(
-    nx::Int,
-    nu::Int,
-    N::Int
-)::BackwardTerms
-    Ks = [zeros(nu, nx) for k = 1:(N-1)]
-    ds = [zeros(nu) for k = 1:(N-1)]
-    ΔJ = Inf
-    return BackwardTerms(Ks, ds, ΔJ)
-end
-
-function BackwardTerms(
-    params::Parameters
-)::BackwardTerms
-    return BackwardTerms(params.sys.nx, params.sys.nu, params.N)
-end
-
-
-"""
-"""
 mutable struct CostExpansion
     Jx::Vector{Float64}
     Ju::Vector{Float64}
@@ -215,6 +189,36 @@ end
 
 """
 """
+mutable struct BackwardTerms
+    Jexp::CostExpansion
+    Qexp::ActionValueExpansion
+    Ks::Vector{VecOrMat{Float64}}
+    ds::Vector{Vector{Float64}}
+    ΔJ::Float64
+end
+
+function BackwardTerms(
+    nx::Int,
+    nu::Int,
+    N::Int
+)::BackwardTerms
+    Jexp = CostExpansion(nx, nu)
+    Qexp = ActionValueExpansion(nx, nu)
+    Ks = [zeros(nu, nx) for k = 1:(N-1)]
+    ds = [zeros(nu) for k = 1:(N-1)]
+    ΔJ = Inf
+    return BackwardTerms(Jexp, Qexp, Ks, ds, ΔJ)
+end
+
+function BackwardTerms(
+    params::Parameters
+)::BackwardTerms
+    return BackwardTerms(params.sys.nx, params.sys.nu, params.N)
+end
+
+
+"""
+"""
 mutable struct TemporaryArrays
     x::Vector{Float64}
     u::Vector{Float64}
@@ -257,8 +261,6 @@ end
 mutable struct Cache
     fwd::ForwardTerms
     bwd::BackwardTerms
-    Jexp::CostExpansion
-    Qexp::ActionValueExpansion
     tmp::TemporaryArrays
 end
 
@@ -267,8 +269,6 @@ function Cache(
 )::Cache
     fwd = ForwardTerms(params)
     bwd = BackwardTerms(params)
-    Jexp = CostExpansion(params)
-    Qexp = ActionValueExpansion(params)
     tmp = TemporaryArrays(params)
-    return Cache(fwd, bwd, Jexp, Qexp, tmp)
+    return Cache(fwd, bwd, tmp)
 end
