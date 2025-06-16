@@ -48,13 +48,14 @@ function update_gains!(
     mul!(Qexp.Quu_reg, μ, I)
     Qexp.Quu_reg .+= Qexp.Quu
     #tmp.lu = lu!(Qexp.Quu_reg)
-    tmp.lu = lu(sparse(Qexp.Quu_reg))
+    #tmp.lu = lu(sparse(Qexp.Quu_reg))
+    tmp.qr = qr!(Qexp.Quu_reg)
 
     # Feedback gains: bwd.Ks[k] .= Qexp.Quu_reg \ Qexp.Qux
-    ldiv!(K, tmp.lu, Qexp.Qux)
+    ldiv!(K, tmp.qr, Qexp.Qux)
 
     # Feedforward gains: bwd.ds[k] .= Qexp.Quu_reg \ Qexp.Qu
-    ldiv!(d, tmp.lu, Qexp.Qu)
+    ldiv!(d, tmp.qr, Qexp.Qu)
     return nothing
 end
 
