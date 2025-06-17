@@ -1,7 +1,43 @@
 """
 """
-function expand_dynamics!(
-    Qexp::ActionValueExpansion,
+function expand_terminal_cost!(
+    V::ValueExpansion,
+    tmp::TemporaryArrays,
+    cost::TrajectoryCost,
+    xerr::Vector{Float64}
+)::Nothing
+    tmp.xx_hess = ForwardDiff.hessian!(tmp.xx_hess, cost.terminal, xerr)
+    V.x .= DiffResults.gradient(tmp.xx_hess)
+    V.xx .= DiffResults.hessian(tmp.xx_hess)
+    return nothing
+end
+
+"""
+"""
+function expand_L!(
+    L::CostExpansion,
+    tmp::TemporaryArrays,
+    cost::TrajectoryCost,
+    xerr::Vector{Float64},
+    uerr::Vector{Float64}
+)::Nothing
+    tmp.xx_hess = ForwardDiff.hessian!(
+        tmp.xx_hess, δx -> cost.stage(δx, uerr), xerr
+    )
+    tmp.uu_hess = ForwardDiff.hessian!(
+        tmp.uu_hess, δu -> cost.stage(xerr, δu), uerr
+    )
+    L.x .= DiffResults.gradient(tmp.xx_hess)
+    L.u .= DiffResults.gradient(tmp.uu_hess)
+    L.xx .= DiffResults.hessian(tmp.xx_hess)
+    L.uu .= DiffResults.hessian(tmp.uu_hess)
+    return nothing
+end
+
+"""
+"""
+function expand_F!(
+    F::FlowExpansion,
     tmp::TemporaryArrays,
     params::Parameters,
     trn::Union{Transition, Nothing},
@@ -12,24 +48,24 @@ function expand_dynamics!(
     if typeof(trn) == Transition
         tmp.xx1 .= trn.saltation(x, u)
 
-        # Hybrid dynamics jacobian wrt x: salt * A
+        # Hybrid dynamics jacobian wrt x: salt * Fxx
         ForwardDiff.jacobian!(
             tmp.xx2, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
         )
-        mul!(Qexp.A, tmp.xx1, tmp.xx2)
+        mul!(F.xx, tmp.xx1, tmp.xx2)
 
-        # Hybrid dynamics jacobian wrt u: salt * B
+        # Hybrid dynamics jacobian wrt u: salt * Fxu
         ForwardDiff.jacobian!(
             tmp.xu, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
         )
-        mul!(Qexp.B, tmp.xx1, tmp.xu)
+        mul!(F.xu, tmp.xx1, tmp.xu)
 
     else
         ForwardDiff.jacobian!(
-            Qexp.A, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
+            F.xx, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
         )
         ForwardDiff.jacobian!(
-            Qexp.B, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
+            F.xu, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
         )
     end
     return nothing
@@ -37,111 +73,75 @@ end
 
 """
 """
-function expand_stage_cost!(
-    Jexp::CostExpansion,
-    cost::TrajectoryCost,
-    xerr::Vector{Float64},
-    uerr::Vector{Float64}
-)::Nothing
-    Jexp.Jxx_result = ForwardDiff.hessian!(
-        Jexp.Jxx_result, δx -> cost.stage(δx, uerr), xerr
-    )
-    Jexp.Juu_result = ForwardDiff.hessian!(
-        Jexp.Juu_result, δu -> cost.stage(xerr, δu), uerr
-    )
-    Jexp.Jx .= DiffResults.gradient(Jexp.Jxx_result)
-    Jexp.Ju .= DiffResults.gradient(Jexp.Juu_result)
-    Jexp.Jxx .= DiffResults.hessian(Jexp.Jxx_result)
-    Jexp.Juu .= DiffResults.hessian(Jexp.Juu_result)
-    return nothing
-end
-
-"""
-"""
-function expand_terminal_cost!(
-    Qexp::ActionValueExpansion,
-    Jexp::CostExpansion,
-    cost::TrajectoryCost,
-    xerr::Vector{Float64}
-)::Nothing
-    Jexp.Jxx_result = ForwardDiff.hessian!(Jexp.Jxx_result, cost.terminal, xerr)
-    Qexp.Vx .= DiffResults.gradient(Jexp.Jxx_result)
-    Qexp.Vxx .= DiffResults.hessian(Jexp.Jxx_result)
-    return nothing
-end
-
-"""
-"""
 function expand_Q!(
-    Qexp::ActionValueExpansion,
-    Jexp::CostExpansion,
+    Q::ActionValueExpansion,
     tmp::TemporaryArrays,
-    f̃::Vector{Float64}
+    V::ValueExpansion,
+    L::CostExpansion,
+    F::FlowExpansion
 )::Nothing
-    # Cost-to-go gradient with defects
-    # Qexp.V̂x .= Qexp.Vx + Qexp.Vxx*f̃
-    mul!(Qexp.V̂x, Qexp.Vxx, f̃)
-    Qexp.V̂x .+= Qexp.Vx
-
     # Action-value gradients
-    # Qexp.Qx .= Jexp.Jx + Qexp.A'*Qexp.V̂x
-    mul!(Qexp.Qx, Qexp.A', Qexp.V̂x)
-    Qexp.Qx .+= Jexp.Jx
+    # Q.x = L.x + F.xx'*V.x
+    mul!(Q.x, F.xx', V.x)
+    Q.x .+= L.x
 
-    # Qexp.Qu .= Jexp.Ju + Qexp.B'*Qexp.V̂x
-    mul!(Qexp.Qu, Qexp.B', Qexp.V̂x)
-    Qexp.Qu .+= Jexp.Ju
+    # Q.u = L.u + F.xu'*V.x
+    mul!(Q.u, F.xu', V.x)
+    Q.u .+= L.u
 
     # Action-value hessians
-    ## Qexp.Qxx .= Jexp.Jxx + Qexp.A'*Qexp.Vxx*Qexp.A
-    mul!(tmp.xx1, Qexp.A', Qexp.Vxx)
-    mul!(Qexp.Qxx, tmp.xx1, Qexp.A)
-    Qexp.Qxx .+= Jexp.Jxx
+    ## Q.xx = L.xx + F.xx'*V.xx*F.xx
+    mul!(tmp.xx1, F.xx', V.xx)
+    mul!(Q.xx, tmp.xx1, F.xx)
+    Q.xx .+= L.xx
 
-    # Qexp.Quu .= Jexp.Juu + Qexp.B'*Qexp.Vxx*Qexp.B
-    mul!(tmp.ux, Qexp.B', Qexp.Vxx)
-    mul!(Qexp.Quu, tmp.ux, Qexp.B)
-    Qexp.Quu .+= Jexp.Juu
+    # Q.uu = L.uu + F.xu'*V.xx*F.xu
+    mul!(tmp.ux, F.xu', V.xx)
+    mul!(Q.uu, tmp.ux, F.xu)
+    Q.uu .+= L.uu
 
-    # Qexp.Qxu .= Qexp.A'*Qexp.Vxx*Qexp.B
-    mul!(tmp.xx1, Qexp.A', Qexp.Vxx)
-    mul!(Qexp.Qxu, tmp.xx1, Qexp.B)
+    # Q.xu = F.xx'*V.xx*F.xu
+    mul!(tmp.xx1, F.xx', V.xx)
+    mul!(Q.xu, tmp.xx1, F.xu)
 
-    # Qexp.Qux .= Qexp.B'*Qexp.Vxx*Qexp.A
-    mul!(tmp.ux, Qexp.B', Qexp.Vxx)
-    mul!(Qexp.Qux, tmp.ux, Qexp.A)
+    # Q.ux = F.xu'*V.xx*F.xx
+    mul!(tmp.ux, F.xu', V.xx)
+    mul!(Q.ux, tmp.ux, F.xx)
     return nothing
 end
 
 """
 """
 function expand_V!(
-    Qexp::ActionValueExpansion,
+    V::ValueExpansion,
     tmp::TemporaryArrays,
+    Q::ActionValueExpansion,
     K::Matrix{Float64},
-    d::Vector{Float64}
+    d::Vector{Float64},
+    f̃::Vector{Float64}
 )::Nothing
-    # Cost-to-go gradient
-    # Vx = Qx - K'*Qu + K'*Quu*d - Qxu*d
-    Qexp.Vx .= Qexp.Qx
-    mul!(tmp.x, K', Qexp.Qu)
-    Qexp.Vx .-= tmp.x
-    mul!(tmp.xu, K', Qexp.Quu)
-    mul!(tmp.x, tmp.xu, d)
-    Qexp.Vx .+= tmp.x
-    mul!(tmp.x, Qexp.Qxu, d)
-    Qexp.Vx .-= tmp.x
-
     # Cost-to-go hessian
-    # Vxx = Qxx - K'*Qux + K'*Quu*K - Qxu*K
-    Qexp.Vxx .= Qexp.Qxx
-    mul!(tmp.xx1, K', Qexp.Qux)
-    Qexp.Vxx .-= tmp.xx1
-    mul!(tmp.xu, K', Qexp.Quu)
+    # V.xx = Q.xx - K'*ux + K'*uu*K - Q.xu*K
+    V.xx .= Q.xx
+    mul!(tmp.xx1, K', Q.ux)
+    V.xx .-= tmp.xx1
+    mul!(tmp.xu, K', Q.uu)
     mul!(tmp.xx1, tmp.xu, K)
-    Qexp.Vxx .+= tmp.xx1
-    mul!(tmp.xx1, Qexp.Qxu, K)
-    Qexp.Vxx .-= tmp.xx1
+    V.xx .+= tmp.xx1
+    mul!(tmp.xx1, Q.xu, K)
+    V.xx .-= tmp.xx1
+
+    # Cost-to-go gradient with defects
+    # x = V.xx*f̃ + x - K'*u + K'*uu*d - xu*d
+    mul!(V.x, V.xx, f̃)
+    V.x .+= Q.x
+    mul!(tmp.x, K', Q.u)
+    V.x .-= tmp.x
+    mul!(tmp.xu, K', Q.uu)
+    mul!(tmp.x, tmp.xu, d)
+    V.x .+= tmp.x
+    mul!(tmp.x, Q.xu, d)
+    V.x .-= tmp.x
     return nothing
 end
 
@@ -150,22 +150,43 @@ end
 function update_gains!(
     K::VecOrMat{Float64},
     d::Vector{Float64},
-    Qexp::ActionValueExpansion,
+    Q::ActionValueExpansion,
     tmp::TemporaryArrays,
     μ::Float64
 )::Nothing
-    # Regularized Quu: Qexp.Quu_reg = Qexp.Quu + μ*I
-    mul!(Qexp.Quu_reg, μ, I)
-    Qexp.Quu_reg .+= Qexp.Quu
-    #tmp.lu = lu!(Qexp.Quu_reg)
-    #tmp.lu = lu(sparse(Qexp.Quu_reg))
-    tmp.qr = qr!(Qexp.Quu_reg)
+    # Regularized uu: uu += μ*I
+    mul!(tmp.uu, μ, I)
+    Q.uu .+= tmp.uu
 
-    # Feedback gains: bwd.Ks[k] .= Qexp.Quu_reg \ Qexp.Qux
-    ldiv!(K, tmp.qr, Qexp.Qux)
+    # Get pivoted LU factorization of regularized uu
+    Q.uu, tmp.iu, info = LAPACK.getrf!(Q.uu)
 
-    # Feedforward gains: bwd.ds[k] .= Qexp.Quu_reg \ Qexp.Qu
-    ldiv!(d, tmp.qr, Qexp.Qu)
+    # Feedback gains: K = uu \ ux
+    K .= Q.ux
+    LAPACK.getrs!('N', Q.uu, tmp.iu, K)
+
+    # Feedforward gains: d = uu \ u
+    d .= Q.u
+    LAPACK.getrs!('N', Q.uu, tmp.iu, d)
+    return nothing
+end
+
+function update_cost_prediction!(
+    bwd::BackwardTerms,
+    fwd::ForwardTerms,
+    Q::ActionValueExpansion,
+    V::ValueExpansion,
+    k::Int
+)::Nothing
+    # Predicted change in cost
+    # ΔJ1 += d'*Qu + f̃'*(Vx - Vxx*x)
+    bwd.ΔJ1 += bwd.ds[k]'*Q.u + fwd.f̃s[k]'*(V.x - V.xx*fwd.xs[k])
+
+    # ΔJ2 += d'*Qu*d + f̃'*(2*Vxx*x - Vxx*f̃)
+    bwd.ΔJ2 += (
+        bwd.ds[k]'*Q.uu*bwd.ds[k]
+        + fwd.f̃s[k]'*(2*V.xx*fwd.xs[k] - V.xx*fwd.f̃s[k])
+    )
     return nothing
 end
 
@@ -179,33 +200,32 @@ function backward_pass!(
     μ::Float64
 )::Nothing
     # Reference expansion structs
-    Jexp = bwd.Jexp
-    Qexp = bwd.Qexp
+    F = bwd.F
+    L = bwd.L
+    V = bwd.V
+    Q = bwd.Q
 
     # Reset predicted change in cost
-    bwd.ΔJ = 0.0
+    bwd.ΔJ1 = 0.0
+    bwd.ΔJ2 = 0.0
 
     # Initialize value expansion
     tmp.x .= fwd.xs[end] .- params.xrefs[end]
-    expand_terminal_cost!(Qexp, Jexp, params.cost, tmp.x)
+    expand_terminal_cost!(V, tmp, params.cost, tmp.x)
 
     @inbounds for k = (params.N-1) : -1 : 1
         tmp.x .= fwd.xs[k] .- params.xrefs[k]
         tmp.u .= fwd.us[k] .- params.urefs[k]
-        expand_stage_cost!(Jexp, params.cost, tmp.x, tmp.u)
 
-        expand_dynamics!(
-            Qexp, tmp, params,
-            fwd.trns[k].val, fwd.modes[k],
-            fwd.xs[k], fwd.us[k]
+        expand_L!(L, tmp, params.cost, tmp.x, tmp.u)
+        expand_F!(
+            F, tmp, params,
+            fwd.trns[k].val, fwd.modes[k], fwd.xs[k], fwd.us[k]
         )
-
-        expand_Q!(Qexp, Jexp, tmp, fwd.f̃s[k])
-        update_gains!(bwd.Ks[k], bwd.ds[k], Qexp, tmp, μ)
-        expand_V!(Qexp, tmp, bwd.Ks[k], bwd.ds[k])
-
-        # Change in cost
-        bwd.ΔJ += Qexp.Qu' * bwd.ds[k]
+        expand_Q!(Q, tmp, V, L, F)
+        update_gains!(bwd.Ks[k], bwd.ds[k], Q, tmp, μ)
+        expand_V!(V, tmp, Q, bwd.Ks[k], bwd.ds[k], fwd.f̃s[k])
+        update_cost_prediction!(bwd, fwd, Q, V, k)
     end
     return nothing
 end

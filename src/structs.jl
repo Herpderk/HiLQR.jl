@@ -104,97 +104,94 @@ end
 
 """
 """
+mutable struct FlowExpansion
+    xx::Matrix{Float64}
+    xu::Matrix{Float64}
+end
+
+function FlowExpansion(
+    nx::Int,
+    nu::Int
+)::FlowExpansion
+    xx = zeros(nx, nx)
+    xu = zeros(nx, nu)
+    return FlowExpansion(xx, xu)
+end
+
+
+"""
+"""
 mutable struct CostExpansion
-    Jx::Vector{Float64}
-    Ju::Vector{Float64}
-
-    Jxx::Matrix{Float64}
-    Juu::Matrix{Float64}
-
-    Jxx_result::DiffResults.DiffResult
-    Juu_result::DiffResults.DiffResult
+    x::Vector{Float64}
+    u::Vector{Float64}
+    xx::Matrix{Float64}
+    uu::Matrix{Float64}
 end
 
 function CostExpansion(
     nx::Int,
     nu::Int
 )::CostExpansion
-    Jx = zeros(nx)
-    Ju = zeros(nu)
-    Jxx = zeros(nx, nx)
-    Juu = zeros(nu, nu)
-    Jxx_result = DiffResults.HessianResult(zeros(nx))
-    Juu_result = DiffResults.HessianResult(zeros(nu))
-    return CostExpansion(Jx, Ju, Jxx, Juu, Jxx_result, Juu_result)
+    x = zeros(nx)
+    u = zeros(nu)
+    xx = zeros(nx, nx)
+    uu = zeros(nu, nu)
+    return CostExpansion(x, u, xx, uu)
 end
 
-function CostExpansion(
-    params::Parameters
-)::CostExpansion
-    return CostExpansion(params.sys.nx, params.sys.nu)
+
+"""
+"""
+mutable struct ValueExpansion
+    x::Vector{Float64}
+    xx::Matrix{Float64}
+end
+
+function ValueExpansion(
+    nx::Int
+)::ValueExpansion
+    x = zeros(nx)
+    xx = zeros(nx, nx)
+    return ValueExpansion(x, xx)
 end
 
 
 """
 """
 mutable struct ActionValueExpansion
-    A::Matrix{Float64}
-    B::Matrix{Float64}
-
-    V̂x::Vector{Float64}
-    Vx::Vector{Float64}
-    Vxx::Matrix{Float64}
-
-    Qx::Vector{Float64}
-    Qu::Vector{Float64}
-
-    Qxx::Matrix{Float64}
-    Quu::Matrix{Float64}
-    Quu_reg::Matrix{Float64}
-    Qxu::Matrix{Float64}
-    Qux::Matrix{Float64}
+    x::Vector{Float64}
+    u::Vector{Float64}
+    xx::Matrix{Float64}
+    uu::Matrix{Float64}
+    xu::Matrix{Float64}
+    ux::Matrix{Float64}
 end
 
 function ActionValueExpansion(
     nx::Int,
     nu::Int
 )::ActionValueExpansion
-    A = zeros(nx, nx)
-    B = zeros(nx, nu)
-    V̂x = zeros(nx)
-    Vx = zeros(nx)
-    Vxx = zeros(nx, nx)
-    Qx = zeros(nx)
-    Qu = zeros(nu)
-    Qxx = zeros(nx, nx)
-    Quu = zeros(nu, nu)
-    Quu_reg = zeros(nu, nu)
-    Qxu = zeros(nx, nu)
-    Qux = zeros(nu, nx)
-    return ActionValueExpansion(
-        A, B,
-        V̂x, Vx, Vxx,
-        Qx, Qu,
-        Qxx, Quu, Quu_reg,
-        Qxu, Qux
-    )
-end
-
-function ActionValueExpansion(
-    params::Parameters
-)::ActionValueExpansion
-    return ActionValueExpansion(params.sys.nx, params.sys.nu)
+    x = zeros(nx)
+    u = zeros(nu)
+    xx = zeros(nx, nx)
+    uu = zeros(nu, nu)
+    xu = zeros(nx, nu)
+    ux = zeros(nu, nx)
+    return ActionValueExpansion(x, u, xx, uu, xu, ux)
 end
 
 
 """
 """
 mutable struct BackwardTerms
-    Jexp::CostExpansion
-    Qexp::ActionValueExpansion
+    F::FlowExpansion
+    L::CostExpansion
+    V::ValueExpansion
+    Q::ActionValueExpansion
     Ks::Vector{VecOrMat{Float64}}
     ds::Vector{Vector{Float64}}
-    ΔJ::Float64
+    ΔJ1::Float64
+    ΔJ2::Float64
 end
 
 function BackwardTerms(
@@ -202,12 +199,15 @@ function BackwardTerms(
     nu::Int,
     N::Int
 )::BackwardTerms
-    Jexp = CostExpansion(nx, nu)
-    Qexp = ActionValueExpansion(nx, nu)
+    F = FlowExpansion(nx, nu)
+    L = CostExpansion(nx, nu)
+    V = ValueExpansion(nx)
+    Q = ActionValueExpansion(nx, nu)
     Ks = [zeros(nu, nx) for k = 1:(N-1)]
     ds = [zeros(nu) for k = 1:(N-1)]
-    ΔJ = Inf
-    return BackwardTerms(Jexp, Qexp, Ks, ds, ΔJ)
+    ΔJ1 = Inf
+    ΔJ2 = Inf
+    return BackwardTerms(F, L, V, Q, Ks, ds, ΔJ1, ΔJ2)
 end
 
 function BackwardTerms(
@@ -222,14 +222,17 @@ end
 mutable struct TemporaryArrays
     x::Vector{Float64}
     u::Vector{Float64}
+    iu::Vector{Int}
+
     xx1::Matrix{Float64}
     xx2::Matrix{Float64}
+
     uu::Matrix{Float64}
     xu::Matrix{Float64}
     ux::Matrix{Float64}
-    #lu::LU{Float64, Matrix{Float64}, Vector{Int64}}
-    #lu::SparseArrays.UMFPACK.UmfpackLU{Float64, Int64}
-    qr::LinearAlgebra.QRCompactWY{Float64, Matrix{Float64}, Matrix{Float64}}
+
+    xx_hess::DiffResults.DiffResult
+    uu_hess::DiffResults.DiffResult
 end
 
 function TemporaryArrays(
@@ -238,15 +241,15 @@ function TemporaryArrays(
 )::TemporaryArrays
     x = zeros(nx)
     u = zeros(nu)
+    iu = zeros(Int, nu)
     xx1 = zeros(nx, nx)
     xx2 = zeros(nx, nx)
     uu = zeros(nu, nu)
     xu = zeros(nx, nu)
     ux = zeros(nu, nx)
-    #lu_val = lu!(diagm(ones(nu)))
-    #lu_val = lu(sparse(I, nu, nu))
-    qr = qr!(Matrix{Float64}(I, nu, nu))
-    return TemporaryArrays(x, u, xx1, xx2, uu, xu, ux, qr)
+    xx_hess = DiffResults.HessianResult(zeros(nx))
+    uu_hess = DiffResults.HessianResult(zeros(nu))
+    return TemporaryArrays(x, u, iu, xx1, xx2, uu, xu, ux, xx_hess, uu_hess)
 end
 
 function TemporaryArrays(
