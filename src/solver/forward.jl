@@ -53,23 +53,37 @@ end
 """
 function forward_pass!(
     sol::Solution,
-    fwd::ForwardTerms,
-    bwd::BackwardTerms,
-    tmp::TemporaryArrays,
+    cache::Cache,
     params::Parameters,
     ls_iter::Int,
-    αmax::Float64,
-    multishoot::Bool
+    αmax::Float64
 )::Nothing
-    fwd.α = multishoot ? clamp(αmax, 0.0, 1.0) : 1.0
+    # Get references to Cache structs
+    fwd = cache.fwd
+    bwd = cache.bwd
+    tmp = cache.tmp
+
+    # Init line-search step size and cost
+    fwd.α = clamp(αmax, 0.5^ls_iter, 1.0)
     Jls = 0.0
 
     for i = 1:ls_iter
         nonlinear_rollout!(fwd, bwd, tmp, sol, params)
         Jls = params.cost(params.xrefs, params.urefs, fwd.xs, fwd.us)
         Jls < sol.J ? break : nothing
+
+        #=
+        ΔJ_actual = Jls - sol.J
+        ΔJ_pred = bwd.ΔJ1*fwd.α + 0.5*bwd.ΔJ2*fwd.α^2
+        #Jls < sol.J ? break : nothing
         #Jls < sol.J - 1e-2*fwd.α*bwd.ΔJ ? break : nothing
-        fwd.α *= 0.5
+
+        if ΔJ_pred <= 0.0
+            ΔJ_actual < 0.1*ΔJ_pred ? break : nothing
+        else
+            ΔJ_actual < 2.0*ΔJ_pred ? break : nothing
+        end
+        fwd.α *= 0.5 =#
     end
 
     fwd.ΔJ = abs(Jls - sol.J)
@@ -85,13 +99,16 @@ end
 """
 function init_terms!(
     sol::Solution,
-    fwd::ForwardTerms,
-    bwd::BackwardTerms,
-    tmp::TemporaryArrays,
+    cache::Cache,
     params::Parameters,
     αmax::Float64,
     multishoot::Bool
 )::Nothing
+    # Get references to Cache structs
+    fwd = cache.fwd
+    bwd = cache.bwd
+
+    # Set initial conditions
     fwd.modes[1] = params.sys.modes[params.mI]
     fwd.xs[1] = params.x0
     sol.xs[1] = params.x0
@@ -113,7 +130,7 @@ function init_terms!(
         # Roll out with a full newton step
         sol.J = Inf
         fill!(sol.f̃s, zeros(params.sys.nx))
-        forward_pass!(sol, fwd, bwd, tmp, params, 1, αmax, false)
+        forward_pass!(sol, cache, params, 1, αmax)
     end
     return nothing
 end

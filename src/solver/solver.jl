@@ -2,23 +2,23 @@
 """
 function log(
     sol::Solution,
-    fwd::ForwardTerms,
+    cache::Cache,
     iter::Int
 )::Nothing
     if rem(iter-1, 20) == 0
-        println("-------------------------------------------------------")
-        println("iter        J          ΔJ         ‖f̃‖        α       τ")
-        println("-------------------------------------------------------")
+        println("--------------------------------------------------------")
+        println("iter        J          ΔJ         ‖f̃‖         α       τ")
+        println("--------------------------------------------------------")
     end
 
     τ = 0
-    for trn in fwd.trns
+    for trn in cache.fwd.trns
         τ = !isnothing(trn.val) ? τ+1 : τ
     end
 
     @printf(
-        "%4.04i     %8.2e   %8.2e   %8.2e   %7.5f   %3.03i\n",
-        iter, sol.J, fwd.ΔJ, sol.f̃norm, fwd.α, τ
+        "%4.04i     %8.2e   %8.2e   %8.1e   %7.5f   %3.03i\n",
+        iter, sol.J, cache.fwd.ΔJ, sol.f̃norm, cache.fwd.α, τ
     )
 end
 
@@ -26,11 +26,11 @@ end
 """
 function terminate(
     sol::Solution,
-    fwd::ForwardTerms,
+    cache::Cache,
     defect_tol::Float64,
     stat_tol::Float64
 )::Bool
-    return (sol.f̃norm < defect_tol) && (fwd.ΔJ < stat_tol)
+    return (sol.f̃norm < defect_tol) && (cache.fwd.ΔJ < stat_tol)
 end
 
 """
@@ -48,21 +48,16 @@ function inner_solve!(
     multishoot::Bool,
     verbose::Bool
 )::Nothing
-    # References to cache attributes
-    fwd = cache.fwd
-    bwd = cache.bwd
-    tmp = cache.tmp
-
     # Initial roll-out
-    init_terms!(sol, fwd, bwd, tmp, params, αmax, multishoot)
+    init_terms!(sol, cache, params, αmax, multishoot)
 
     # Main solve loop
     for i = 1:max_iter
-        backward_pass!(fwd, bwd, tmp, params, reg)
-        forward_pass!(sol, fwd, bwd, tmp, params, max_ls_iter, αmax, multishoot)
+        backward_pass!(cache, params, reg)
+        forward_pass!(sol, cache, params, max_ls_iter, αmax)
 
-        verbose ? log(sol, fwd, i) : nothing
-        if terminate(sol, fwd, defect_tol, stat_tol)
+        verbose ? log(sol, cache, i) : nothing
+        if terminate(sol, cache, defect_tol, stat_tol)
             verbose ? println("\nOptimal solution found!") : nothing
             return nothing
         end

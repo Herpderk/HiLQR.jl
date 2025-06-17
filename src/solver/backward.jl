@@ -161,11 +161,11 @@ function update_gains!(
     # Get pivoted LU factorization of regularized uu
     Q.uu, tmp.iu, info = LAPACK.getrf!(Q.uu)
 
-    # Feedback gains: K = uu \ ux
+    # Feedback gains: K = Q.uu \ Q.ux
     K .= Q.ux
     LAPACK.getrs!('N', Q.uu, tmp.iu, K)
 
-    # Feedforward gains: d = uu \ u
+    # Feedforward gains: d = Q.uu \ Q.u
     d .= Q.u
     LAPACK.getrs!('N', Q.uu, tmp.iu, d)
     return nothing
@@ -193,13 +193,14 @@ end
 """
 """
 function backward_pass!(
-    fwd::ForwardTerms,
-    bwd::BackwardTerms,
-    tmp::TemporaryArrays,
+    cache::Cache,
     params::Parameters,
     μ::Float64
 )::Nothing
-    # Reference expansion structs
+    # Get references to Cache structs
+    fwd = cache.fwd
+    bwd = cache.bwd
+    tmp = cache.tmp
     F = bwd.F
     L = bwd.L
     V = bwd.V
