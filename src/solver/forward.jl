@@ -83,7 +83,8 @@ function forward_pass!(
         else
             ΔJ_actual < 2.0*ΔJ_pred ? break : nothing
         end
-        fwd.α *= 0.5 =#
+        =#
+        fwd.α *= 0.5
     end
 
     fwd.ΔJ = abs(Jls - sol.J)
