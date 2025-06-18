@@ -39,8 +39,8 @@ function inner_solve!(
     sol::Solution,
     cache::Cache,
     params::Parameters,
-    αmax::Float64,
-    reg::Float64,
+    max_step::Float64,
+    regularizer::Float64,
     stat_tol::Float64,
     defect_tol::Float64,
     max_iter::Int,
@@ -49,12 +49,12 @@ function inner_solve!(
     verbose::Bool
 )::Nothing
     # Initial roll-out
-    init_terms!(sol, cache, params, αmax, multishoot)
+    init_terms!(sol, cache, params, max_step, regularizer, multishoot)
 
     # Main solve loop
     for i = 1:max_iter
-        backward_pass!(cache, params, reg)
-        forward_pass!(sol, cache, params, max_ls_iter, αmax)
+        backward_pass!(cache, params)
+        forward_pass!(sol, cache, params, max_ls_iter, max_step)
 
         verbose ? log(sol, cache, i) : nothing
         if terminate(sol, cache, defect_tol, stat_tol)
@@ -71,8 +71,8 @@ function solve!(
     sol::Solution,
     cache::Cache,
     params::Parameters;
-    αmax::Float64 = 1.0,
-    reg::Float64 = 1e-6,
+    max_step::Float64 = 1.0,
+    regularizer::Float64 = 1e-6,
     stat_tol::Float64 = 1e-9,
     defect_tol::Float64 = 1e-9,
     max_iter::Int = 1000,
@@ -84,8 +84,8 @@ function solve!(
         sol,
         cache,
         params,
-        αmax,
-        reg,
+        max_step,
+        regularizer,
         stat_tol,
         defect_tol,
         max_iter,

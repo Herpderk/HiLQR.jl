@@ -105,17 +105,17 @@ end
 """
 """
 mutable struct FlowExpansion
-    xx::Matrix{Float64}
-    xu::Matrix{Float64}
+    x::Matrix{Float64}
+    u::Matrix{Float64}
 end
 
 function FlowExpansion(
     nx::Int,
     nu::Int
 )::FlowExpansion
-    xx = zeros(nx, nx)
-    xu = zeros(nx, nu)
-    return FlowExpansion(xx, xu)
+    Fx = zeros(nx, nx)
+    Fu = zeros(nx, nu)
+    return FlowExpansion(Fx, Fu)
 end
 
 
@@ -132,11 +132,11 @@ function CostExpansion(
     nx::Int,
     nu::Int
 )::CostExpansion
-    x = zeros(nx)
-    u = zeros(nu)
-    xx = zeros(nx, nx)
-    uu = zeros(nu, nu)
-    return CostExpansion(x, u, xx, uu)
+    Lx = zeros(nx)
+    Lu = zeros(nu)
+    Lxx = zeros(nx, nx)
+    Luu = zeros(nu, nu)
+    return CostExpansion(Lx, Lu, Lxx, Luu)
 end
 
 
@@ -150,9 +150,9 @@ end
 function ValueExpansion(
     nx::Int
 )::ValueExpansion
-    x = zeros(nx)
-    xx = zeros(nx, nx)
-    return ValueExpansion(x, xx)
+    Vx = zeros(nx)
+    Vxx = zeros(nx, nx)
+    return ValueExpansion(Vx, Vxx)
 end
 
 
@@ -162,22 +162,26 @@ mutable struct ActionValueExpansion
     x::Vector{Float64}
     u::Vector{Float64}
     xx::Matrix{Float64}
-    uu::Matrix{Float64}
     xu::Matrix{Float64}
     ux::Matrix{Float64}
+    uu::Matrix{Float64}
+    uu_μ::Matrix{Float64}
+    uu_lu::SparseArrays.UMFPACK.UmfpackLU{Float64, Int64}
 end
 
 function ActionValueExpansion(
     nx::Int,
     nu::Int
 )::ActionValueExpansion
-    x = zeros(nx)
-    u = zeros(nu)
-    xx = zeros(nx, nx)
-    uu = zeros(nu, nu)
-    xu = zeros(nx, nu)
-    ux = zeros(nu, nx)
-    return ActionValueExpansion(x, u, xx, uu, xu, ux)
+    Qx = zeros(nx)
+    Qu = zeros(nu)
+    Qxx = zeros(nx, nx)
+    Qxu = zeros(nx, nu)
+    Qux = zeros(nu, nx)
+    Quu = zeros(nu, nu)
+    Quu_μ = zeros(nu, nu)
+    Quu_lu = lu(sparse(rand(nu, nu)))
+    return ActionValueExpansion(Qx, Qu, Qxx, Qxu, Qux, Quu, Quu_μ, Quu_lu)
 end
 
 

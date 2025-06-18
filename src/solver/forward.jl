@@ -56,7 +56,7 @@ function forward_pass!(
     cache::Cache,
     params::Parameters,
     ls_iter::Int,
-    αmax::Float64
+    max_step::Float64
 )::Nothing
     # Get references to Cache structs
     fwd = cache.fwd
@@ -64,7 +64,7 @@ function forward_pass!(
     tmp = cache.tmp
 
     # Init line-search step size and cost
-    fwd.α = clamp(αmax, 0.5^ls_iter, 1.0)
+    fwd.α = clamp(max_step, 0.5^ls_iter, 1.0)
     Jls = 0.0
 
     for i = 1:ls_iter
@@ -102,18 +102,23 @@ function init_terms!(
     sol::Solution,
     cache::Cache,
     params::Parameters,
-    αmax::Float64,
+    max_step::Float64,
+    regularizer::Float64,
     multishoot::Bool
 )::Nothing
     # Get references to Cache structs
     fwd = cache.fwd
     bwd = cache.bwd
 
+    # Set regularizer
+    mul!(bwd.Q.uu_μ, regularizer, I)
+
     # Set initial conditions
     fwd.modes[1] = params.sys.modes[params.mI]
     fwd.xs[1] = params.x0
     sol.xs[1] = params.x0
 
+    # Initialize gains
     @inbounds @simd for k = 1:(params.N-1)
         fill!(bwd.Ks[k], 0.0)
         fill!(bwd.ds[k], 0.0)
@@ -131,7 +136,7 @@ function init_terms!(
         # Roll out with a full newton step
         sol.J = Inf
         fill!(sol.f̃s, zeros(params.sys.nx))
-        forward_pass!(sol, cache, params, 1, αmax)
+        forward_pass!(sol, cache, params, 1, max_step)
     end
     return nothing
 end

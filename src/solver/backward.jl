@@ -48,24 +48,24 @@ function expand_F!(
     if typeof(trn) == Transition
         tmp.xx1 .= trn.saltation(x, u)
 
-        # Hybrid dynamics jacobian wrt x: salt * Fxx
+        # Hybrid dynamics jacobian wrt x: salt * Fx
         ForwardDiff.jacobian!(
             tmp.xx2, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
         )
-        mul!(F.xx, tmp.xx1, tmp.xx2)
+        mul!(F.x, tmp.xx1, tmp.xx2)
 
-        # Hybrid dynamics jacobian wrt u: salt * Fxu
+        # Hybrid dynamics jacobian wrt u: salt * Fu
         ForwardDiff.jacobian!(
             tmp.xu, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
         )
-        mul!(F.xu, tmp.xx1, tmp.xu)
+        mul!(F.u, tmp.xx1, tmp.xu)
 
     else
         ForwardDiff.jacobian!(
-            F.xx, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
+            F.x, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
         )
         ForwardDiff.jacobian!(
-            F.xu, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
+            F.u, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
         )
     end
     return nothing
@@ -81,32 +81,32 @@ function expand_Q!(
     F::FlowExpansion
 )::Nothing
     # Action-value gradients
-    # Q.x = L.x + F.xx'*V.x
-    mul!(Q.x, F.xx', V.x)
+    # Q.x = L.x + F.x'*V.x
+    mul!(Q.x, F.x', V.x)
     Q.x .+= L.x
 
-    # Q.u = L.u + F.xu'*V.x
-    mul!(Q.u, F.xu', V.x)
+    # Q.u = L.u + F.u'*V.x
+    mul!(Q.u, F.u', V.x)
     Q.u .+= L.u
 
     # Action-value hessians
-    ## Q.xx = L.xx + F.xx'*V.xx*F.xx
-    mul!(tmp.xx1, F.xx', V.xx)
-    mul!(Q.xx, tmp.xx1, F.xx)
+    # Q.xx = L.xx + F.x'*V.xx*F.x
+    mul!(tmp.xx1, F.x', V.xx)
+    mul!(Q.xx, tmp.xx1, F.x)
     Q.xx .+= L.xx
 
-    # Q.uu = L.uu + F.xu'*V.xx*F.xu
-    mul!(tmp.ux, F.xu', V.xx)
-    mul!(Q.uu, tmp.ux, F.xu)
-    Q.uu .+= L.uu
+    # Q.uu = L.uu + F.u'*V.xx*F.u + μ*I
+    mul!(tmp.ux, F.u', V.xx)
+    mul!(Q.uu, tmp.ux, F.u)
+    Q.uu .+= L.uu .+ Q.uu_μ
 
-    # Q.xu = F.xx'*V.xx*F.xu
-    mul!(tmp.xx1, F.xx', V.xx)
-    mul!(Q.xu, tmp.xx1, F.xu)
+    # Q.xu = F.x'*V.xx*F.u
+    mul!(tmp.xx1, F.x', V.xx)
+    mul!(Q.xu, tmp.xx1, F.u)
 
-    # Q.ux = F.xu'*V.xx*F.xx
-    mul!(tmp.ux, F.xu', V.xx)
-    mul!(Q.ux, tmp.ux, F.xx)
+    # Q.ux = F.u'*V.xx*F.x
+    mul!(tmp.ux, F.u', V.xx)
+    mul!(Q.ux, tmp.ux, F.x)
     return nothing
 end
 
@@ -121,7 +121,7 @@ function expand_V!(
     f̃::Vector{Float64}
 )::Nothing
     # Cost-to-go hessian
-    # V.xx = Q.xx - K'*ux + K'*uu*K - Q.xu*K
+    # V.xx = Q.xx - K'*Q.ux + K'*Q.uu*K - Q.xu*K
     V.xx .= Q.xx
     mul!(tmp.xx1, K', Q.ux)
     V.xx .-= tmp.xx1
@@ -132,7 +132,7 @@ function expand_V!(
     V.xx .-= tmp.xx1
 
     # Cost-to-go gradient with defects
-    # x = V.xx*f̃ + x - K'*u + K'*uu*d - xu*d
+    # V.x = V.xx*f̃ + Q.x - K'*u + K'*uu*d - xu*d
     mul!(V.x, V.xx, f̃)
     V.x .+= Q.x
     mul!(tmp.x, K', Q.u)
@@ -150,24 +150,16 @@ end
 function update_gains!(
     K::VecOrMat{Float64},
     d::Vector{Float64},
-    Q::ActionValueExpansion,
-    tmp::TemporaryArrays,
-    μ::Float64
+    Q::ActionValueExpansion
 )::Nothing
-    # Regularized uu: uu += μ*I
-    mul!(tmp.uu, μ, I)
-    Q.uu .+= tmp.uu
-
-    # Get pivoted LU factorization of regularized uu
-    Q.uu, tmp.iu, info = LAPACK.getrf!(Q.uu)
+    # Get sparse LU factorization
+    lu!(Q.uu_lu, sparse(Q.uu))
 
     # Feedback gains: K = Q.uu \ Q.ux
-    K .= Q.ux
-    LAPACK.getrs!('N', Q.uu, tmp.iu, K)
+    ldiv!(K, Q.uu_lu, Q.ux)
 
     # Feedforward gains: d = Q.uu \ Q.u
-    d .= Q.u
-    LAPACK.getrs!('N', Q.uu, tmp.iu, d)
+    ldiv!(d, Q.uu_lu, Q.u)
     return nothing
 end
 
@@ -194,8 +186,7 @@ end
 """
 function backward_pass!(
     cache::Cache,
-    params::Parameters,
-    μ::Float64
+    params::Parameters
 )::Nothing
     # Get references to Cache structs
     fwd = cache.fwd
@@ -224,7 +215,7 @@ function backward_pass!(
             fwd.trns[k].val, fwd.modes[k], fwd.xs[k], fwd.us[k]
         )
         expand_Q!(Q, tmp, V, L, F)
-        update_gains!(bwd.Ks[k], bwd.ds[k], Q, tmp, μ)
+        update_gains!(bwd.Ks[k], bwd.ds[k], Q)
         expand_V!(V, tmp, Q, bwd.Ks[k], bwd.ds[k], fwd.f̃s[k])
         update_cost_prediction!(bwd, fwd, Q, V, k)
     end
