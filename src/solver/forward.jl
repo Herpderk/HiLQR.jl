@@ -8,18 +8,18 @@ function nonlinear_rollout!(
     params::Parameters
 )::Nothing
     # Defect closure rate
-    c = 1 - fwd.α
+    c = 1.0 - fwd.α
 
     # Forward roll-out
     @inbounds for k = 1:(params.N-1)
         # Get new input
         # fwd.us[k] = sol.us[k] - fwd.α*bwd.ds[k] - bwd.Ks[k]*(fwd.xs[k] - sol.xs[k])
-        fwd.us[k] = sol.us[k]
+        fwd.us[k] .= sol.us[k]
         mul!(tmp.u, fwd.α, bwd.ds[k])
         fwd.us[k] -= tmp.u
-        tmp.x = fwd.xs[k] .- sol.xs[k]
+        tmp.x .= fwd.xs[k] .- sol.xs[k]
         mul!(tmp.u, bwd.Ks[k], tmp.x)
-        fwd.us[k] -= tmp.u
+        fwd.us[k] .-= tmp.u
 
         # Integrate smooth dynamics
         tmp.x .= params.igtr(fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt)
@@ -28,7 +28,7 @@ function nonlinear_rollout!(
         Rflag = false
         for (trn, mJ) in fwd.modes[k].transitions
             if trn.guard(tmp.x) < 0.0
-                tmp.x = trn.reset(tmp.x)
+                tmp.x .= trn.reset(tmp.x)
                 fwd.trns[k].val = trn
                 fwd.modes[k+1] = mJ
                 Rflag = true
@@ -55,23 +55,22 @@ function forward_pass!(
     sol::Solution,
     cache::Cache,
     params::Parameters,
-    ls_iter::Int,
-    max_step::Float64
+    max_step::Float64,
+    ls_iter::Int
 )::Nothing
     # Get references to Cache structs
     fwd = cache.fwd
     bwd = cache.bwd
     tmp = cache.tmp
 
-    # Init line-search step size and cost
-    fwd.α = clamp(max_step, 0.5^ls_iter, 1.0)
+    # Initialize line search step size and trajectory cost
+    fwd.α = clamp(max_step, 0.0, 1.0)
     Jls = 0.0
 
     for i = 1:ls_iter
         nonlinear_rollout!(fwd, bwd, tmp, sol, params)
         Jls = params.cost(params.xrefs, params.urefs, fwd.xs, fwd.us)
         Jls < sol.J ? break : nothing
-
         #=
         ΔJ_actual = Jls - sol.J
         ΔJ_pred = bwd.ΔJ1*fwd.α + 0.5*bwd.ΔJ2*fwd.α^2
@@ -92,7 +91,8 @@ function forward_pass!(
     sol.xs .= fwd.xs
     sol.us .= fwd.us
     sol.f̃s .= fwd.f̃s
-    sol.f̃norm = norm(norm.(sol.f̃s, Inf), Inf)
+    sol.f̃norm = norm(sol.f̃s, Inf)
+    #@show norm.(sol.f̃s)
     return nothing
 end
 
@@ -102,7 +102,6 @@ function init_terms!(
     sol::Solution,
     cache::Cache,
     params::Parameters,
-    max_step::Float64,
     regularizer::Float64,
     multishoot::Bool
 )::Nothing
@@ -132,11 +131,14 @@ function init_terms!(
                 fwd.modes[1].flow, sol.xs[k], sol.us[k], params.Δt
             )
         end
+        #forward_pass!(sol, cache, params, 0.0, 0)
     else
         # Roll out with a full newton step
         sol.J = Inf
-        fill!(sol.f̃s, zeros(params.sys.nx))
-        forward_pass!(sol, cache, params, 1, max_step)
+        @inbounds @simd for k = 1:(params.N-1)
+            fill!(sol.f̃s[k], 0.0)
+        end
+        forward_pass!(sol, cache, params, 1.0, 1)
     end
     return nothing
 end

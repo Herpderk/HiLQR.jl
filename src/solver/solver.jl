@@ -6,9 +6,9 @@ function log(
     iter::Int
 )::Nothing
     if rem(iter-1, 20) == 0
-        println("--------------------------------------------------------")
-        println("iter        J          ΔJ         ‖f̃‖         α       τ")
-        println("--------------------------------------------------------")
+        println("-------------------------------------------------------")
+        println("iter        J          ΔJ         ‖f̃‖        α       τ")
+        println("-------------------------------------------------------")
     end
 
     τ = 0
@@ -17,7 +17,7 @@ function log(
     end
 
     @printf(
-        "%4.04i     %8.2e   %8.2e   %8.1e   %7.5f   %3.03i\n",
+        "%4.04i     %8.2e   %8.2e   %8.2e   %7.5f   %3.03i\n",
         iter, sol.J, cache.fwd.ΔJ, sol.f̃norm, cache.fwd.α, τ
     )
 end
@@ -35,7 +35,7 @@ end
 
 """
 """
-function inner_solve!(
+function core_solve!(
     sol::Solution,
     cache::Cache,
     params::Parameters,
@@ -49,12 +49,12 @@ function inner_solve!(
     verbose::Bool
 )::Nothing
     # Initial roll-out
-    init_terms!(sol, cache, params, max_step, regularizer, multishoot)
+    init_terms!(sol, cache, params, regularizer, multishoot)
 
     # Main solve loop
     for i = 1:max_iter
         backward_pass!(cache, params)
-        forward_pass!(sol, cache, params, max_ls_iter, max_step)
+        forward_pass!(sol, cache, params, max_step, max_ls_iter)
 
         verbose ? log(sol, cache, i) : nothing
         if terminate(sol, cache, defect_tol, stat_tol)
@@ -80,7 +80,7 @@ function solve!(
     multishoot::Bool = false,
     verbose::Bool = true,
 )::Nothing
-    inner_solve!(
+    core_solve!(
         sol,
         cache,
         params,

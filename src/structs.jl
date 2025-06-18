@@ -46,7 +46,7 @@ function Solution(
 )::Solution
     xs = [zeros(nx) for k = 1:N]
     us = [zeros(nu) for k = 1:(N-1)]
-    f̃s = [zeros(nx) for k = 1:N]
+    f̃s = [zeros(nx) for k = 1:(N-1)]
     f̃norm = 0.0
     J = 0.0
     return Solution(xs, us, f̃s, f̃norm, J)
@@ -89,7 +89,7 @@ function ForwardTerms(
     trns = [NullTransition(nothing) for k = 1:(N-1)]
     xs = [zeros(nx) for k = 1:N]
     us = [zeros(nu) for k = 1:(N-1)]
-    f̃s = [zeros(nx) for k = 1:N]
+    f̃s = [zeros(nx) for k = 1:(N-1)]
     α = 1.0
     ΔJ = Inf
     return ForwardTerms(modes, trns, xs, us, f̃s, α, ΔJ)
