@@ -15,8 +15,8 @@ using HybridRobotDynamics:
 
 include("utils.jl")
 include("structs.jl")
-include("solver/backward.jl")
-include("solver/forward.jl")
-include("solver/solver.jl")
+include("backward.jl")
+include("forward.jl")
+include("solver.jl")
 
 end # module HiLQR
