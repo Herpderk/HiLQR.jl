@@ -14,7 +14,7 @@ function expand_Lterm!(
     tmp.xx_hess = ForwardDiff.hessian!(tmp.xx_hess, params.cost.terminal, tmp.x)
     BLAS.copy!(V.x, DiffResults.gradient(tmp.xx_hess))
     BLAS.copy!(V.xx, DiffResults.hessian(tmp.xx_hess))
-    return nothing
+    return
 end
 
 """
@@ -45,7 +45,7 @@ function expand_L!(
     )
     BLAS.copy!(L.u, DiffResults.gradient(tmp.uu_hess))
     BLAS.copy!(L.uu, DiffResults.hessian(tmp.uu_hess))
-    return nothing
+    return
 end
 
 """
@@ -88,7 +88,7 @@ function expand_F!(
             F.u, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
         )
     end
-    return nothing
+    return
 end
 
 """
@@ -128,7 +128,7 @@ function expand_Q!(
     # Q.ux = F.u'*V.xx*F.x
     mul!(tmp.ux, F.u', V.xx)
     mul!(Q.ux, tmp.ux, F.x)
-    return nothing
+    return
 end
 
 """
@@ -168,7 +168,7 @@ function expand_V!(
     BLAS.axpy!(1.0, tmp.x, V.x)
     mul!(tmp.x, Q.xu, d)
     BLAS.axpy!(-1.0, tmp.x, V.x)
-    return nothing
+    return
 end
 
 """
@@ -186,7 +186,7 @@ function update_gains!(
 
     # Feedback gains: K = Q.uu \ Q.ux
     ldiv!(bwd.Ks[k], Q.uu_lu, Q.ux)
-    return nothing
+    return
 end
 
 """
@@ -207,7 +207,7 @@ function update_cost_prediction!(
         bwd.ds[k]'*Q.uu*bwd.ds[k]
         + fwd.f̃s[k]'*(2*V.xx*fwd.xs[k] - V.xx*fwd.f̃s[k])
     )
-    return nothing
+    return
 end
 
 """
@@ -241,5 +241,5 @@ function backward_pass!(
         expand_V!(V, tmp, Q, fwd, bwd, k)   # Value expansion
         #update_cost_prediction!(bwd, fwd, Q, V, k)
     end
-    return nothing
+    return
 end

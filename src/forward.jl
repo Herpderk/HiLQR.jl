@@ -53,7 +53,7 @@ function nonlinear_rollout!(
         # Apply defects to rollout
         BLAS.axpy!(-1.0, fwd.f̃s[k], fwd.xs[k+1])
     end
-    return nothing
+    return
 end
 
 """
@@ -110,7 +110,7 @@ function forward_pass!(
     BLAS.copy!.(sol.us, fwd.us)
     BLAS.copy!.(sol.f̃s, fwd.f̃s)
     sol.f̃norm = norm(sol.f̃s, Inf)
-    return nothing
+    return
 end
 
 """
@@ -138,7 +138,7 @@ function init_solver!(
     fill!.(bwd.ds, 0.0)
 
     # Initialize trajectory cost
-    sol.J =Inf
+    sol.J = Inf
 
     if multishoot
         # Initialize defects
@@ -154,7 +154,6 @@ function init_solver!(
         BLAS.copy!.(fwd.us, sol.us)
         BLAS.copy!.(fwd.f̃s, sol.f̃s)
         fwd.α = 0.0
-        #forward_pass!(sol, cache, params, 0.0, 0.0, 1)
     else
         # Set defects to 0
         fill!.(sol.f̃s, 0.0)
@@ -162,5 +161,5 @@ function init_solver!(
         # Roll out with a full newton step
         forward_pass!(sol, cache, params, 1.0, 1.0, 1)
     end
-    return nothing
+    return
 end

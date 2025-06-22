@@ -60,12 +60,12 @@ function core_solve!(
         verbose ? log(sol, cache, i) : nothing
         if terminate(sol, cache, defect_tol, stat_tol)
             verbose ? println("\nOptimal solution found!") : nothing
-            return nothing
+            return
         end
     end
 
     verbose ? println("\nMaximum iterations exceeded!") : nothing
-    return nothing
+    return
 end
 
 function solve!(
@@ -96,7 +96,7 @@ function solve!(
         multishoot,
         verbose
     )
-    return nothing
+    return
 end
 
 function solve(
