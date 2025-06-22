@@ -55,7 +55,7 @@ function (cost::TrajectoryCost)(
     BLAS.axpy!.(-1.0, (@view urefs[1:end]), cost.stage_us)
 
     # Broadcast stage cost
-    cost.stage_ℓs .= cost.stage.(cost.stage_xs, cost.stage_us)
+    BLAS.copy!(cost.stage_ℓs, cost.stage.(cost.stage_xs, cost.stage_us))
 
     # Get terminal x - xref
     BLAS.copy!(cost.term_x, xs[end])
