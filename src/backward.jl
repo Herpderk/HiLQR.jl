@@ -233,7 +233,7 @@ function backward_pass!(
     expand_Lterm!(V, tmp, fwd, params)
 
     # Backward Riccati
-    for k = (params.N-1) : -1 : 1
+    @inbounds for k = (params.N-1) : -1 : 1
         expand_L!(L, tmp, fwd, params, k)   # Stage cost expansion
         expand_F!(F, tmp, fwd, params, k)   # Dynamics expansion
         expand_Q!(Q, tmp, V, L, F)          # Action-value expansion

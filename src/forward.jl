@@ -18,7 +18,7 @@ function nonlinear_rollout!(
     BLAS.copy!.(fwd.us, sol.us)
 
     # Forward rollout
-    for k = 1:(params.N-1)
+    @inbounds for k = 1:(params.N-1)
         # Update control input
         #fwd.us[k] = sol.us[k] - α*ds[k] - Ks[k]*(fwd.xs[k] - sol.xs[k])
         mul!(tmp.u, fwd.α, bwd.ds[k])
@@ -35,7 +35,7 @@ function nonlinear_rollout!(
 
         # Reset and update mode if a guard is hit
         Rflag = false
-        for (trn, mJ) in fwd.modes[k].transitions
+        @inbounds for (trn, mJ) in fwd.modes[k].transitions
             if trn.guard(fwd.xs[k+1]) < 0.0
                 BLAS.copy!(fwd.xs[k+1], trn.reset(fwd.xs[k+1]))
                 fwd.trns[k].val = trn
@@ -76,7 +76,7 @@ function forward_pass!(
     Jls = 0.0
 
     # Iterate backtracking line search
-    for i = 1:ls_iter
+    @inbounds for i = 1:ls_iter
         # Roll out new gains
         nonlinear_rollout!(fwd, bwd, tmp, sol, params)
 
