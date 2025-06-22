@@ -5,12 +5,11 @@ function nonlinear_rollout!(
     bwd::BackwardTerms,
     tmp::TemporaryArrays,
     sol::Solution,
-    params::Parameters
+    params::Parameters,
+    defect_rate::Float64
 )::Nothing
-    # Get defect closure rate
-    c = 1.0 - fwd.α
-
     # Close defects
+    c = 1.0 - fwd.α * clamp(defect_rate, 0.0, 1.0)
     mul!.(fwd.f̃s, c, sol.f̃s)
 
     # Initialize trajectory with previous solution
@@ -64,6 +63,7 @@ function forward_pass!(
     cache::Cache,
     params::Parameters,
     max_step::Float64,
+    defect_rate::Float64,
     ls_iter::Int
 )::Nothing
     # Get references to Cache structs
@@ -78,7 +78,7 @@ function forward_pass!(
     # Iterate backtracking line search
     @inbounds for i = 1:ls_iter
         # Roll out new gains
-        nonlinear_rollout!(fwd, bwd, tmp, sol, params)
+        nonlinear_rollout!(fwd, bwd, tmp, sol, params, defect_rate)
 
         # Evaluate trajectory cost
         Jls = params.cost(fwd.xs, fwd.us, params.xrefs, params.urefs)
@@ -115,7 +115,7 @@ end
 
 """
 """
-function init_terms!(
+function init_solver!(
     sol::Solution,
     cache::Cache,
     params::Parameters,
@@ -138,7 +138,7 @@ function init_terms!(
     fill!.(bwd.ds, 0.0)
 
     # Initialize trajectory cost
-    sol.J = Inf
+    sol.J =Inf
 
     if multishoot
         # Initialize defects
@@ -154,12 +154,13 @@ function init_terms!(
         BLAS.copy!.(fwd.us, sol.us)
         BLAS.copy!.(fwd.f̃s, sol.f̃s)
         fwd.α = 0.0
+        #forward_pass!(sol, cache, params, 0.0, 0.0, 1)
     else
         # Set defects to 0
         fill!.(sol.f̃s, 0.0)
 
         # Roll out with a full newton step
-        forward_pass!(sol, cache, params, 1.0, 1)
+        forward_pass!(sol, cache, params, 1.0, 1.0, 1)
     end
     return nothing
 end

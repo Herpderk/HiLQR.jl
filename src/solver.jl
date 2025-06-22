@@ -39,8 +39,9 @@ function core_solve!(
     sol::Solution,
     cache::Cache,
     params::Parameters,
-    max_step::Float64,
     regularizer::Float64,
+    max_step::Float64,
+    defect_rate::Float64,
     stat_tol::Float64,
     defect_tol::Float64,
     max_iter::Int,
@@ -48,13 +49,13 @@ function core_solve!(
     multishoot::Bool,
     verbose::Bool
 )::Nothing
-    # Initialize relevant variables
-    init_terms!(sol, cache, params, regularizer, multishoot)
+    # Initialize solver variables
+    init_solver!(sol, cache, params, regularizer, multishoot)
 
     # Main solve loop
     for i = 1:max_iter
         backward_pass!(cache, params)
-        forward_pass!(sol, cache, params, max_step, max_ls_iter)
+        forward_pass!(sol, cache, params, max_step, defect_rate, max_ls_iter)
 
         verbose ? log(sol, cache, i) : nothing
         if terminate(sol, cache, defect_tol, stat_tol)
@@ -71,8 +72,9 @@ function solve!(
     sol::Solution,
     cache::Cache,
     params::Parameters;
-    max_step::Float64 = 1.0,
     regularizer::Float64 = 1e-6,
+    max_step::Float64 = 1.0,
+    defect_rate::Float64 = 1.0,
     stat_tol::Float64 = 1e-9,
     defect_tol::Float64 = 1e-9,
     max_iter::Int = 1000,
@@ -84,8 +86,9 @@ function solve!(
         sol,
         cache,
         params,
-        max_step,
         regularizer,
+        max_step,
+        defect_rate,
         stat_tol,
         defect_tol,
         max_iter,
