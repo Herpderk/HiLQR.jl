@@ -1,14 +1,15 @@
 """
 """
-function expand_terminal_cost!(
+function expand_Lterm!(
     V::ValueExpansion,
     tmp::TemporaryArrays,
     cost::TrajectoryCost,
     xerr::Vector{Float64}
 )::Nothing
+    # Get gradient and hessian of terminal cost wrt x
     tmp.xx_hess = ForwardDiff.hessian!(tmp.xx_hess, cost.terminal, xerr)
-    V.x .= DiffResults.gradient(tmp.xx_hess)
-    V.xx .= DiffResults.hessian(tmp.xx_hess)
+    copy!(V.x, DiffResults.gradient(tmp.xx_hess))
+    copy!(V.xx, DiffResults.hessian(tmp.xx_hess))
     return nothing
 end
 
@@ -21,16 +22,19 @@ function expand_L!(
     xerr::Vector{Float64},
     uerr::Vector{Float64}
 )::Nothing
+    # Get gradient and hessian of stage cost wrt x
     tmp.xx_hess = ForwardDiff.hessian!(
         tmp.xx_hess, δx -> cost.stage(δx, uerr), xerr
     )
+    copy!(L.x, DiffResults.gradient(tmp.xx_hess))
+    copy!(L.xx, DiffResults.hessian(tmp.xx_hess))
+
+    # Get gradient and hessian of stage cost wrt u
     tmp.uu_hess = ForwardDiff.hessian!(
         tmp.uu_hess, δu -> cost.stage(xerr, δu), uerr
     )
-    L.x .= DiffResults.gradient(tmp.xx_hess)
-    L.u .= DiffResults.gradient(tmp.uu_hess)
-    L.xx .= DiffResults.hessian(tmp.xx_hess)
-    L.uu .= DiffResults.hessian(tmp.uu_hess)
+    copy!(L.u, DiffResults.gradient(tmp.uu_hess))
+    copy!(L.uu, DiffResults.hessian(tmp.uu_hess))
     return nothing
 end
 
@@ -45,8 +49,9 @@ function expand_F!(
     x::Vector{Float64},
     u::Vector{Float64}
 )::Nothing
+    # Perform salted update if transition is detected
     if typeof(trn) == Transition
-        tmp.xx1 .= trn.saltation(x, u)
+        copy!(tmp.xx1, trn.saltation(x, u))
 
         # Hybrid dynamics jacobian wrt x: salt * Fx
         ForwardDiff.jacobian!(
@@ -59,11 +64,12 @@ function expand_F!(
             tmp.xu, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
         )
         mul!(F.u, tmp.xx1, tmp.xu)
-
     else
+        # Dynamics jacobian wrt x
         ForwardDiff.jacobian!(
             F.x, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
         )
+        # Dynamics jacobian wrt u
         ForwardDiff.jacobian!(
             F.u, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
         )
@@ -83,22 +89,23 @@ function expand_Q!(
     # Action-value gradients
     # Q.x = L.x + F.x'*V.x
     mul!(Q.x, F.x', V.x)
-    Q.x .+= L.x
+    axpy!(1.0, L.x, Q.x)
 
     # Q.u = L.u + F.u'*V.x
     mul!(Q.u, F.u', V.x)
-    Q.u .+= L.u
+    axpy!(1.0, L.u, Q.u)
 
     # Action-value hessians
     # Q.xx = L.xx + F.x'*V.xx*F.x
     mul!(tmp.xx1, F.x', V.xx)
     mul!(Q.xx, tmp.xx1, F.x)
-    Q.xx .+= L.xx
+    axpy!(1.0, L.xx, Q.xx)
 
     # Q.uu = L.uu + F.u'*V.xx*F.u + μ*I
     mul!(tmp.ux, F.u', V.xx)
     mul!(Q.uu, tmp.ux, F.u)
-    Q.uu .+= L.uu .+ Q.uu_μ
+    axpy!(1.0, L.uu, Q.uu)
+    axpy!(1.0, Q.uu_μ, Q.uu)
 
     # Q.xu = F.x'*V.xx*F.u
     mul!(tmp.xx1, F.x', V.xx)
@@ -122,26 +129,26 @@ function expand_V!(
 )::Nothing
     # Cost-to-go hessian
     # V.xx = Q.xx - K'*Q.ux + K'*Q.uu*K - Q.xu*K
-    V.xx .= Q.xx
+    copy!(V.xx, Q.xx)
     mul!(tmp.xx1, K', Q.ux)
-    V.xx .-= tmp.xx1
+    axpy!(-1.0, tmp.xx1, V.xx)
     mul!(tmp.xu, K', Q.uu)
     mul!(tmp.xx1, tmp.xu, K)
-    V.xx .+= tmp.xx1
+    axpy!(1.0, tmp.xx1, V.xx)
     mul!(tmp.xx1, Q.xu, K)
-    V.xx .-= tmp.xx1
+    axpy!(-1.0, tmp.xx1, V.xx)
 
     # Cost-to-go gradient with defects
     # V.x = V.xx*f̃ + Q.x - K'*u + K'*uu*d - xu*d
     mul!(V.x, V.xx, f̃)
-    V.x .+= Q.x
+    axpy!(1.0, Q.x, V.x)
     mul!(tmp.x, K', Q.u)
-    V.x .-= tmp.x
+    axpy!(-1.0, tmp.x, V.x)
     mul!(tmp.xu, K', Q.uu)
     mul!(tmp.x, tmp.xu, d)
-    V.x .+= tmp.x
+    axpy!(1.0, tmp.x, V.x)
     mul!(tmp.x, Q.xu, d)
-    V.x .-= tmp.x
+    axpy!(-1.0, tmp.x, V.x)
     return nothing
 end
 
@@ -198,26 +205,38 @@ function backward_pass!(
     Q = bwd.Q
 
     # Reset predicted change in cost
-    bwd.ΔJ1 = 0.0
-    bwd.ΔJ2 = 0.0
+    #bwd.ΔJ1 = 0.0
+    #bwd.ΔJ2 = 0.0
 
     # Initialize value expansion
-    tmp.x .= fwd.xs[end] .- params.xrefs[end]
-    expand_terminal_cost!(V, tmp, params.cost, tmp.x)
+    copy!(tmp.x, fwd.xs[end])
+    axpy!(-1.0, params.xrefs[end], tmp.x)
+    expand_Lterm!(V, tmp, params.cost, tmp.x)
 
-    @inbounds for k = (params.N-1) : -1 : 1
-        tmp.x .= fwd.xs[k] .- params.xrefs[k]
-        tmp.u .= fwd.us[k] .- params.urefs[k]
+    for k = (params.N-1) : -1 : 1
+        # Get stage x and u errors
+        copy!(tmp.x, fwd.xs[k])
+        axpy!(-1.0, params.xrefs[k], tmp.x)
+        copy!(tmp.u, fwd.us[k])
+        axpy!(-1.0, params.urefs[k], tmp.u)
 
+        # Stage cost expansion
         expand_L!(L, tmp, params.cost, tmp.x, tmp.u)
+
+        # Dynamics expansion
         expand_F!(
-            F, tmp, params,
-            fwd.trns[k].val, fwd.modes[k], fwd.xs[k], fwd.us[k]
+            F, tmp, params, fwd.trns[k].val, fwd.modes[k], fwd.xs[k], fwd.us[k]
         )
+
+        # Action-value expansion
         expand_Q!(Q, tmp, V, L, F)
+
+        # Get feedback and feedforward
         update_gains!(bwd.Ks[k], bwd.ds[k], Q)
+
+        # Value expansion
         expand_V!(V, tmp, Q, bwd.Ks[k], bwd.ds[k], fwd.f̃s[k])
-        update_cost_prediction!(bwd, fwd, Q, V, k)
+        #update_cost_prediction!(bwd, fwd, Q, V, k)
     end
     return nothing
 end

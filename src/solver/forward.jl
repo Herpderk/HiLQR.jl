@@ -7,28 +7,37 @@ function nonlinear_rollout!(
     sol::Solution,
     params::Parameters
 )::Nothing
-    # Defect closure rate
+    # Get defect closure rate
     c = 1.0 - fwd.α
 
-    # Forward roll-out
-    @inbounds for k = 1:(params.N-1)
-        # Get new input
-        # fwd.us[k] = sol.us[k] - fwd.α*bwd.ds[k] - bwd.Ks[k]*(fwd.xs[k] - sol.xs[k])
-        fwd.us[k] .= sol.us[k]
+    # Close defects
+    mul!.(fwd.f̃s, c, sol.f̃s)
+
+    # Initialize trajectory with previous solution
+    copy!.(fwd.xs, sol.xs)
+    copy!.(fwd.us, sol.us)
+
+    # Forward rollout
+    for k = 1:(params.N-1)
+        # Update control input
+        #fwd.us[k] = sol.us[k] - α*ds[k] - Ks[k]*(fwd.xs[k] - sol.xs[k])
         mul!(tmp.u, fwd.α, bwd.ds[k])
-        fwd.us[k] -= tmp.u
-        tmp.x .= fwd.xs[k] .- sol.xs[k]
+        axpy!(-1.0, tmp.u, fwd.us[k])
+        copy!(tmp.x, fwd.xs[k])
+        axpy!(-1.0, sol.xs[k], tmp.x)
         mul!(tmp.u, bwd.Ks[k], tmp.x)
-        fwd.us[k] .-= tmp.u
+        axpy!(-1.0, tmp.u, fwd.us[k])
 
         # Integrate smooth dynamics
-        tmp.x .= params.igtr(fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt)
+        copy!(fwd.xs[k+1], params.igtr(
+            fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt
+        ))
 
         # Reset and update mode if a guard is hit
         Rflag = false
         for (trn, mJ) in fwd.modes[k].transitions
-            if trn.guard(tmp.x) < 0.0
-                tmp.x .= trn.reset(tmp.x)
+            if trn.guard(fwd.xs[k+1]) < 0.0
+                copy!(fwd.xs[k+1], trn.reset(fwd.xs[k+1]))
                 fwd.trns[k].val = trn
                 fwd.modes[k+1] = mJ
                 Rflag = true
@@ -36,15 +45,14 @@ function nonlinear_rollout!(
             end
         end
 
-        # Do not update mode if a guard is not hit
+        # Don't update mode if a guard is not hit
         if !Rflag
             fwd.trns[k].val = nothing
             fwd.modes[k+1] = fwd.modes[k]
         end
 
-        # Compute defects and roll out next state
-        mul!(fwd.f̃s[k], sol.f̃s[k], c)
-        fwd.xs[k+1] = tmp.x - fwd.f̃s[k]
+        # Apply defects to rollout
+        axpy!(-1.0, fwd.f̃s[k], fwd.xs[k+1])
     end
     return nothing
 end
@@ -67,10 +75,17 @@ function forward_pass!(
     fwd.α = clamp(max_step, 0.0, 1.0)
     Jls = 0.0
 
+    # Iterate backtracking line search
     for i = 1:ls_iter
+        # Roll out new gains
         nonlinear_rollout!(fwd, bwd, tmp, sol, params)
+
+        # Evaluate trajectory cost
         Jls = params.cost(params.xrefs, params.urefs, fwd.xs, fwd.us)
+
+        # Use decreasing cost as line search criteria
         Jls < sol.J ? break : nothing
+
         #=
         ΔJ_actual = Jls - sol.J
         ΔJ_pred = bwd.ΔJ1*fwd.α + 0.5*bwd.ΔJ2*fwd.α^2
@@ -83,16 +98,18 @@ function forward_pass!(
             ΔJ_actual < 2.0*ΔJ_pred ? break : nothing
         end
         =#
+
+        # Shrink step size
         fwd.α *= 0.5
     end
 
+    # Save solver iteration data
     fwd.ΔJ = abs(Jls - sol.J)
     sol.J = Jls
-    sol.xs .= fwd.xs
-    sol.us .= fwd.us
-    sol.f̃s .= fwd.f̃s
+    copy!.(sol.xs, fwd.xs)
+    copy!.(sol.us, fwd.us)
+    copy!.(sol.f̃s, fwd.f̃s)
     sol.f̃norm = norm(sol.f̃s, Inf)
-    #@show norm.(sol.f̃s)
     return nothing
 end
 
@@ -109,35 +126,39 @@ function init_terms!(
     fwd = cache.fwd
     bwd = cache.bwd
 
-    # Set regularizer
+    # Get regularizer matrix
     mul!(bwd.Q.uu_μ, regularizer, I)
 
     # Set initial conditions
     fwd.modes[1] = params.sys.modes[params.mI]
-    fwd.xs[1] = params.x0
-    sol.xs[1] = params.x0
+    copy!(sol.xs[1], params.x0)
 
     # Initialize gains
-    @inbounds @simd for k = 1:(params.N-1)
-        fill!(bwd.Ks[k], 0.0)
-        fill!(bwd.ds[k], 0.0)
-    end
+    fill!.(bwd.Ks, 0.0)
+    fill!.(bwd.ds, 0.0)
+
+    # Initialize trajectory cost
+    sol.J = Inf
 
     if multishoot
         # Initialize defects
-        sol.J = params.cost(params.xrefs, params.urefs, sol.xs, sol.us)
         @inbounds for k = 1:(params.N-1)
-            sol.f̃s[k] .= -sol.xs[k+1] + params.igtr(
+            copy!(sol.f̃s[k], params.igtr(   # TODO handle mode schedule
                 fwd.modes[1].flow, sol.xs[k], sol.us[k], params.Δt
-            )
+            ))
+            axpy!(-1.0, sol.xs[k+1], sol.f̃s[k])
         end
-        #forward_pass!(sol, cache, params, 0.0, 0)
+
+        # Initialize forward terms
+        copy!.(fwd.xs, sol.xs)
+        copy!.(fwd.us, sol.us)
+        copy!.(fwd.f̃s, sol.f̃s)
+        fwd.α = 0.0
     else
+        # Set defects to 0
+        fill!.(sol.f̃s, 0.0)
+
         # Roll out with a full newton step
-        sol.J = Inf
-        @inbounds @simd for k = 1:(params.N-1)
-            fill!(sol.f̃s[k], 0.0)
-        end
         forward_pass!(sol, cache, params, 1.0, 1)
     end
     return nothing

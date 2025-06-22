@@ -48,7 +48,7 @@ function core_solve!(
     multishoot::Bool,
     verbose::Bool
 )::Nothing
-    # Initial roll-out
+    # Initialize relevant variables
     init_terms!(sol, cache, params, regularizer, multishoot)
 
     # Main solve loop

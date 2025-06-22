@@ -1,4 +1,70 @@
 """
+    TrajectoryCost(stage_cost, term_cost, nx, nu, N)
+
+Callable struct containing a given problem's dimensions, indices, and cost functions.
+"""
+mutable struct TrajectoryCost
+    stage::Function
+    terminal::Function
+    stage_ℓs::Vector{<:DiffFloat64}
+    stage_xs::Vector{Vector{<:DiffFloat64}}
+    stage_us::Vector{Vector{<:DiffFloat64}}
+    term_x::Vector{<:DiffFloat64}
+
+    function TrajectoryCost(
+        stage_cost::Function,
+        term_cost::Function,
+        nx::Int,
+        nu::Int,
+        N::Int
+    )::TrajectoryCost
+        stage(
+            x::Vector{<:DiffFloat64},
+            u::Vector{<:DiffFloat64}
+        ) = stage_cost(x, u)::DiffFloat64
+
+        terminal(
+            x::Vector{<:DiffFloat64}
+        ) = term_cost(x)::DiffFloat64
+
+        stage_ℓs = zeros(N-1)
+        term_x = zeros(nx)
+        stage_xs = [zeros(nx) for k = 1:(N-1)]
+        stage_us = [zeros(nu) for k = 1:(N-1)]
+        return new(stage, terminal, stage_ℓs, stage_xs, stage_us, term_x)
+    end
+end
+
+"""
+    cost(xrefs, urefs, xs, us)
+
+Callable struct method for the `TrajectoryCost` struct that computes the accumulated cost over a trajectory given a sequence of references.
+"""
+function (cost::TrajectoryCost)(
+    xrefs::Vector{Vector{Float64}},
+    urefs::Vector{Vector{Float64}},
+    xs::Vector{Vector{Float64}},
+    us::Vector{Vector{Float64}}
+)::Float64
+    # Broadcast stage x - xref
+    copy!.(cost.stage_xs, (@view xs[1:(end-1)]))
+    axpy!.(-1.0, (@view xrefs[1:(end-1)]), cost.stage_xs)
+
+    # Broadcast stage u - ref
+    copy!.(cost.stage_us, (@view us[1:end]))
+    axpy!.(-1.0, (@view urefs[1:end]), cost.stage_us)
+
+    # Broadcast stage cost
+    cost.stage_ℓs .= cost.stage.(cost.stage_xs, cost.stage_us)
+
+    # Get terminal x - xref
+    copy!(cost.term_x, xs[end])
+    axpy!(-1.0, xrefs[end], cost.term_x)
+    return sum(cost.stage_ℓs) + cost.terminal(cost.term_x)
+end
+
+
+"""
 """
 mutable struct Parameters
     sys::HybridSystem
@@ -15,7 +81,7 @@ end
 function Parameters(
     system::HybridSystem,
     stage_cost::Function,
-    terminal_cost::Function,
+    term_cost::Function,
     integrator::ExplicitIntegrator,
     N::Int,
     Δt::Float64,
@@ -24,7 +90,7 @@ function Parameters(
     x0::Vector{Float64} = Float64[],
     mI::Symbol = :nothing,
 )::Parameters
-    cost = TrajectoryCost(stage_cost, terminal_cost)
+    cost = TrajectoryCost(stage_cost, term_cost, system.nx, system.nu, N)
     return Parameters(system, cost, integrator, N, Δt, xrefs, urefs, x0, mI)
 end
 
@@ -226,7 +292,7 @@ end
 mutable struct TemporaryArrays
     x::Vector{Float64}
     u::Vector{Float64}
-    iu::Vector{Int}
+    u2::Vector{Float64}
 
     xx1::Matrix{Float64}
     xx2::Matrix{Float64}
@@ -245,7 +311,7 @@ function TemporaryArrays(
 )::TemporaryArrays
     x = zeros(nx)
     u = zeros(nu)
-    iu = zeros(Int, nu)
+    u2 = zeros(nu)
     xx1 = zeros(nx, nx)
     xx2 = zeros(nx, nx)
     uu = zeros(nu, nu)
@@ -253,7 +319,7 @@ function TemporaryArrays(
     ux = zeros(nu, nx)
     xx_hess = DiffResults.HessianResult(zeros(nx))
     uu_hess = DiffResults.HessianResult(zeros(nu))
-    return TemporaryArrays(x, u, iu, xx1, xx2, uu, xu, ux, xx_hess, uu_hess)
+    return TemporaryArrays(x, u, u2, xx1, xx2, uu, xu, ux, xx_hess, uu_hess)
 end
 
 function TemporaryArrays(
