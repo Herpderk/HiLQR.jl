@@ -36,15 +36,15 @@ mutable struct TrajectoryCost
 end
 
 """
-    cost(xrefs, urefs, xs, us)
+    cost(xs, us, xrefs, urefs)
 
 Callable struct method for the `TrajectoryCost` struct that computes the accumulated cost over a trajectory given a sequence of references.
 """
 function (cost::TrajectoryCost)(
-    xrefs::Vector{Vector{Float64}},
-    urefs::Vector{Vector{Float64}},
     xs::Vector{Vector{Float64}},
-    us::Vector{Vector{Float64}}
+    us::Vector{Vector{Float64}},
+    xrefs::Vector{Vector{Float64}},
+    urefs::Vector{Vector{Float64}}
 )::Float64
     # Broadcast stage x - xref
     copy!.(cost.stage_xs, (@view xs[1:(end-1)]))

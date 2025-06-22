@@ -81,7 +81,7 @@ function forward_pass!(
         nonlinear_rollout!(fwd, bwd, tmp, sol, params)
 
         # Evaluate trajectory cost
-        Jls = params.cost(params.xrefs, params.urefs, fwd.xs, fwd.us)
+        Jls = params.cost(fwd.xs, fwd.us, params.xrefs, params.urefs)
 
         # Use decreasing cost as line search criteria
         Jls < sol.J ? break : nothing
