@@ -7,13 +7,13 @@ function expand_Lterm!(
     params::Parameters
 )::Nothing
     # Get terminal x error
-    copy!(tmp.x, fwd.xs[end])
-    axpy!(-1.0, params.xrefs[end], tmp.x)
+    BLAS.copy!(tmp.x, fwd.xs[end])
+    BLAS.axpy!(-1.0, params.xrefs[end], tmp.x)
 
     # Get gradient and hessian of terminal cost wrt x
     tmp.xx_hess = ForwardDiff.hessian!(tmp.xx_hess, params.cost.terminal, tmp.x)
-    copy!(V.x, DiffResults.gradient(tmp.xx_hess))
-    copy!(V.xx, DiffResults.hessian(tmp.xx_hess))
+    BLAS.copy!(V.x, DiffResults.gradient(tmp.xx_hess))
+    BLAS.copy!(V.xx, DiffResults.hessian(tmp.xx_hess))
     return nothing
 end
 
@@ -27,24 +27,24 @@ function expand_L!(
     k::Int
 )::Nothing
     # Get k-th x and u errors
-    copy!(tmp.x, fwd.xs[k])
-    axpy!(-1.0, params.xrefs[k], tmp.x)
-    copy!(tmp.u, fwd.us[k])
-    axpy!(-1.0, params.urefs[k], tmp.u)
+    BLAS.copy!(tmp.x, fwd.xs[k])
+    BLAS.axpy!(-1.0, params.xrefs[k], tmp.x)
+    BLAS.copy!(tmp.u, fwd.us[k])
+    BLAS.axpy!(-1.0, params.urefs[k], tmp.u)
 
     # Get gradient and hessian of stage cost wrt x
     tmp.xx_hess = ForwardDiff.hessian!(
         tmp.xx_hess, δx -> params.cost.stage(δx, tmp.u), tmp.x
     )
-    copy!(L.x, DiffResults.gradient(tmp.xx_hess))
-    copy!(L.xx, DiffResults.hessian(tmp.xx_hess))
+    BLAS.copy!(L.x, DiffResults.gradient(tmp.xx_hess))
+    BLAS.copy!(L.xx, DiffResults.hessian(tmp.xx_hess))
 
     # Get gradient and hessian of stage cost wrt u
     tmp.uu_hess = ForwardDiff.hessian!(
         tmp.uu_hess, δu -> params.cost.stage(tmp.x, δu), tmp.u
     )
-    copy!(L.u, DiffResults.gradient(tmp.uu_hess))
-    copy!(L.uu, DiffResults.hessian(tmp.uu_hess))
+    BLAS.copy!(L.u, DiffResults.gradient(tmp.uu_hess))
+    BLAS.copy!(L.uu, DiffResults.hessian(tmp.uu_hess))
     return nothing
 end
 
@@ -65,7 +65,7 @@ function expand_F!(
     # Perform salted update if transition is detected
     trn = fwd.trns[k].val
     if typeof(trn) === Transition
-        copy!(tmp.xx1, trn.saltation(x, u))
+        BLAS.copy!(tmp.xx1, trn.saltation(x, u))
 
         # Hybrid dynamics jacobian wrt x: salt * Fx
         ForwardDiff.jacobian!(
@@ -103,23 +103,23 @@ function expand_Q!(
     # Action-value gradients
     # Q.x = L.x + F.x'*V.x
     mul!(Q.x, F.x', V.x)
-    axpy!(1.0, L.x, Q.x)
+    BLAS.axpy!(1.0, L.x, Q.x)
 
     # Q.u = L.u + F.u'*V.x
     mul!(Q.u, F.u', V.x)
-    axpy!(1.0, L.u, Q.u)
+    BLAS.axpy!(1.0, L.u, Q.u)
 
     # Action-value hessians
     # Q.xx = L.xx + F.x'*V.xx*F.x
     mul!(tmp.xx1, F.x', V.xx)
     mul!(Q.xx, tmp.xx1, F.x)
-    axpy!(1.0, L.xx, Q.xx)
+    BLAS.axpy!(1.0, L.xx, Q.xx)
 
     # Q.uu = L.uu + F.u'*V.xx*F.u + μ*I
     mul!(tmp.ux, F.u', V.xx)
     mul!(Q.uu, tmp.ux, F.u)
-    axpy!(1.0, L.uu, Q.uu)
-    axpy!(1.0, Q.uu_μ, Q.uu)
+    BLAS.axpy!(1.0, L.uu, Q.uu)
+    BLAS.axpy!(1.0, Q.uu_μ, Q.uu)
 
     # Q.xu = F.x'*V.xx*F.u
     mul!(tmp.xx1, F.x', V.xx)
@@ -148,26 +148,26 @@ function expand_V!(
 
     # Cost-to-go hessian
     # V.xx = Q.xx - K'*Q.ux + K'*Q.uu*K - Q.xu*K
-    copy!(V.xx, Q.xx)
+    BLAS.copy!(V.xx, Q.xx)
     mul!(tmp.xx1, K', Q.ux)
-    axpy!(-1.0, tmp.xx1, V.xx)
+    BLAS.axpy!(-1.0, tmp.xx1, V.xx)
     mul!(tmp.xu, K', Q.uu)
     mul!(tmp.xx1, tmp.xu, K)
-    axpy!(1.0, tmp.xx1, V.xx)
+    BLAS.axpy!(1.0, tmp.xx1, V.xx)
     mul!(tmp.xx1, Q.xu, K)
-    axpy!(-1.0, tmp.xx1, V.xx)
+    BLAS.axpy!(-1.0, tmp.xx1, V.xx)
 
     # Cost-to-go gradient with defects
     # V.x = V.xx*f̃ + Q.x - K'*u + K'*uu*d - xu*d
     mul!(V.x, V.xx, f̃)
-    axpy!(1.0, Q.x, V.x)
+    BLAS.axpy!(1.0, Q.x, V.x)
     mul!(tmp.x, K', Q.u)
-    axpy!(-1.0, tmp.x, V.x)
+    BLAS.axpy!(-1.0, tmp.x, V.x)
     mul!(tmp.xu, K', Q.uu)
     mul!(tmp.x, tmp.xu, d)
-    axpy!(1.0, tmp.x, V.x)
+    BLAS.axpy!(1.0, tmp.x, V.x)
     mul!(tmp.x, Q.xu, d)
-    axpy!(-1.0, tmp.x, V.x)
+    BLAS.axpy!(-1.0, tmp.x, V.x)
     return nothing
 end
 

@@ -14,22 +14,22 @@ function nonlinear_rollout!(
     mul!.(fwd.f̃s, c, sol.f̃s)
 
     # Initialize trajectory with previous solution
-    copy!.(fwd.xs, sol.xs)
-    copy!.(fwd.us, sol.us)
+    BLAS.copy!.(fwd.xs, sol.xs)
+    BLAS.copy!.(fwd.us, sol.us)
 
     # Forward rollout
     for k = 1:(params.N-1)
         # Update control input
         #fwd.us[k] = sol.us[k] - α*ds[k] - Ks[k]*(fwd.xs[k] - sol.xs[k])
         mul!(tmp.u, fwd.α, bwd.ds[k])
-        axpy!(-1.0, tmp.u, fwd.us[k])
-        copy!(tmp.x, fwd.xs[k])
-        axpy!(-1.0, sol.xs[k], tmp.x)
+        BLAS.axpy!(-1.0, tmp.u, fwd.us[k])
+        BLAS.copy!(tmp.x, fwd.xs[k])
+        BLAS.axpy!(-1.0, sol.xs[k], tmp.x)
         mul!(tmp.u, bwd.Ks[k], tmp.x)
-        axpy!(-1.0, tmp.u, fwd.us[k])
+        BLAS.axpy!(-1.0, tmp.u, fwd.us[k])
 
         # Integrate smooth dynamics
-        copy!(fwd.xs[k+1], params.igtr(
+        BLAS.copy!(fwd.xs[k+1], params.igtr(
             fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt
         ))
 
@@ -37,7 +37,7 @@ function nonlinear_rollout!(
         Rflag = false
         for (trn, mJ) in fwd.modes[k].transitions
             if trn.guard(fwd.xs[k+1]) < 0.0
-                copy!(fwd.xs[k+1], trn.reset(fwd.xs[k+1]))
+                BLAS.copy!(fwd.xs[k+1], trn.reset(fwd.xs[k+1]))
                 fwd.trns[k].val = trn
                 fwd.modes[k+1] = mJ
                 Rflag = true
@@ -52,7 +52,7 @@ function nonlinear_rollout!(
         end
 
         # Apply defects to rollout
-        axpy!(-1.0, fwd.f̃s[k], fwd.xs[k+1])
+        BLAS.axpy!(-1.0, fwd.f̃s[k], fwd.xs[k+1])
     end
     return nothing
 end
@@ -106,9 +106,9 @@ function forward_pass!(
     # Save solver iteration data
     fwd.ΔJ = abs(Jls - sol.J)
     sol.J = Jls
-    copy!.(sol.xs, fwd.xs)
-    copy!.(sol.us, fwd.us)
-    copy!.(sol.f̃s, fwd.f̃s)
+    BLAS.copy!.(sol.xs, fwd.xs)
+    BLAS.copy!.(sol.us, fwd.us)
+    BLAS.copy!.(sol.f̃s, fwd.f̃s)
     sol.f̃norm = norm(sol.f̃s, Inf)
     return nothing
 end
@@ -131,7 +131,7 @@ function init_terms!(
 
     # Set initial conditions
     fwd.modes[1] = params.sys.modes[params.mI]
-    copy!(sol.xs[1], params.x0)
+    BLAS.copy!(sol.xs[1], params.x0)
 
     # Initialize gains
     fill!.(bwd.Ks, 0.0)
@@ -143,16 +143,16 @@ function init_terms!(
     if multishoot
         # Initialize defects
         @inbounds for k = 1:(params.N-1)
-            copy!(sol.f̃s[k], params.igtr(   # TODO handle mode schedule
+            BLAS.copy!(sol.f̃s[k], params.igtr(   # TODO handle mode schedule
                 fwd.modes[1].flow, sol.xs[k], sol.us[k], params.Δt
             ))
-            axpy!(-1.0, sol.xs[k+1], sol.f̃s[k])
+            BLAS.axpy!(-1.0, sol.xs[k+1], sol.f̃s[k])
         end
 
         # Initialize forward terms
-        copy!.(fwd.xs, sol.xs)
-        copy!.(fwd.us, sol.us)
-        copy!.(fwd.f̃s, sol.f̃s)
+        BLAS.copy!.(fwd.xs, sol.xs)
+        BLAS.copy!.(fwd.us, sol.us)
+        BLAS.copy!.(fwd.f̃s, sol.f̃s)
         fwd.α = 0.0
     else
         # Set defects to 0

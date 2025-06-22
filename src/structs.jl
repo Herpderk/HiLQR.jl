@@ -47,19 +47,19 @@ function (cost::TrajectoryCost)(
     urefs::Vector{Vector{Float64}}
 )::Float64
     # Broadcast stage x - xref
-    copy!.(cost.stage_xs, (@view xs[1:(end-1)]))
-    axpy!.(-1.0, (@view xrefs[1:(end-1)]), cost.stage_xs)
+    BLAS.copy!.(cost.stage_xs, (@view xs[1:(end-1)]))
+    BLAS.axpy!.(-1.0, (@view xrefs[1:(end-1)]), cost.stage_xs)
 
     # Broadcast stage u - ref
-    copy!.(cost.stage_us, (@view us[1:end]))
-    axpy!.(-1.0, (@view urefs[1:end]), cost.stage_us)
+    BLAS.copy!.(cost.stage_us, (@view us[1:end]))
+    BLAS.axpy!.(-1.0, (@view urefs[1:end]), cost.stage_us)
 
     # Broadcast stage cost
     cost.stage_ℓs .= cost.stage.(cost.stage_xs, cost.stage_us)
 
     # Get terminal x - xref
-    copy!(cost.term_x, xs[end])
-    axpy!(-1.0, xrefs[end], cost.term_x)
+    BLAS.copy!(cost.term_x, xs[end])
+    BLAS.axpy!(-1.0, xrefs[end], cost.term_x)
     return sum(cost.stage_ℓs) + cost.terminal(cost.term_x)
 end
 
