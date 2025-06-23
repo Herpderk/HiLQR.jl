@@ -1,7 +1,7 @@
 """
 """
 function expand_Lterm!(
-    V::ValueExpansion,
+    bwd::BackwardTerms,
     tmp::TemporaryArrays,
     fwd::ForwardTerms,
     params::Parameters
@@ -10,8 +10,13 @@ function expand_Lterm!(
     BLAS.copy!(tmp.x, fwd.xs[end])
     BLAS.axpy!(-1.0, params.xrefs[end], tmp.x)
 
-    # Get gradient and hessian of terminal cost wrt x
+    # Get terminal cost hessian wrt x
     tmp.xx_hess = ForwardDiff.hessian!(tmp.xx_hess, params.cost.terminal, tmp.x)
+
+    # Reference terminal value expansion
+    V = bwd.Vs[end]
+
+    # Save terminal cost gradient and hessian
     BLAS.copy!(V.x, DiffResults.gradient(tmp.xx_hess))
     BLAS.copy!(V.xx, DiffResults.hessian(tmp.xx_hess))
     return
@@ -20,7 +25,7 @@ end
 """
 """
 function expand_L!(
-    L::CostExpansion,
+    bwd::BackwardTerms,
     tmp::TemporaryArrays,
     fwd::ForwardTerms,
     params::Parameters,
@@ -29,20 +34,25 @@ function expand_L!(
     # Get k-th x and u errors
     BLAS.copy!(tmp.x, fwd.xs[k])
     BLAS.axpy!(-1.0, params.xrefs[k], tmp.x)
+
     BLAS.copy!(tmp.u, fwd.us[k])
     BLAS.axpy!(-1.0, params.urefs[k], tmp.u)
 
-    # Get gradient and hessian of stage cost wrt x
+    # Get gradients and hessians of stage cost wrt x and u
     tmp.xx_hess = ForwardDiff.hessian!(
         tmp.xx_hess, δx -> params.cost.stage(δx, tmp.u), tmp.x
     )
-    BLAS.copy!(L.x, DiffResults.gradient(tmp.xx_hess))
-    BLAS.copy!(L.xx, DiffResults.hessian(tmp.xx_hess))
-
-    # Get gradient and hessian of stage cost wrt u
     tmp.uu_hess = ForwardDiff.hessian!(
         tmp.uu_hess, δu -> params.cost.stage(tmp.x, δu), tmp.u
     )
+
+    # Reference k-th stage cost expansion
+    L = bwd.Ls[k]
+
+    # Save stage cost gradients and hessians wrt x and u
+    BLAS.copy!(L.x, DiffResults.gradient(tmp.xx_hess))
+    BLAS.copy!(L.xx, DiffResults.hessian(tmp.xx_hess))
+
     BLAS.copy!(L.u, DiffResults.gradient(tmp.uu_hess))
     BLAS.copy!(L.uu, DiffResults.hessian(tmp.uu_hess))
     return
@@ -51,13 +61,14 @@ end
 """
 """
 function expand_F!(
-    F::FlowExpansion,
+    bwd::BackwardTerms,
     tmp::TemporaryArrays,
     fwd::ForwardTerms,
     params::Parameters,
     k::Int
 )::Nothing
-    # Reference k-th state, input, and mode
+    # Reference k-th flow expansion, state, input, and mode
+    F = bwd.Fs[k]
     x = fwd.xs[k]
     u = fwd.us[k]
     mode = fwd.modes[k]
@@ -94,12 +105,16 @@ end
 """
 """
 function expand_Q!(
-    Q::ActionValueExpansion,
+    bwd::BackwardTerms,
     tmp::TemporaryArrays,
-    V::ValueExpansion,
-    L::CostExpansion,
-    F::FlowExpansion
+    k::Int
 )::Nothing
+    # Reference k-th expansions
+    V = bwd.Vs[k+1]
+    L = bwd.Ls[k]
+    F = bwd.Fs[k]
+    Q = bwd.Qs[k]
+
     # Action-value gradients
     # Q.x = L.x + F.x'*V.x
     mul!(Q.x, F.x', V.x)
@@ -119,7 +134,7 @@ function expand_Q!(
     mul!(tmp.ux, F.u', V.xx)
     mul!(Q.uu, tmp.ux, F.u)
     BLAS.axpy!(1.0, L.uu, Q.uu)
-    BLAS.axpy!(1.0, Q.uu_μ, Q.uu)
+    BLAS.axpy!(1.0, bwd.μ, Q.uu)
 
     # Q.xu = F.x'*V.xx*F.u
     mul!(tmp.xx1, F.x', V.xx)
@@ -134,13 +149,15 @@ end
 """
 """
 function expand_V!(
-    V::ValueExpansion,
-    tmp::TemporaryArrays,
-    Q::ActionValueExpansion,
-    fwd::ForwardTerms,
     bwd::BackwardTerms,
+    tmp::TemporaryArrays,
+    fwd::ForwardTerms,
     k::Int
 )::Nothing
+    # Reference k-th value and action-value expansion
+    V = bwd.Vs[k]
+    Q = bwd.Qs[k]
+
     # Reference k-th gains and defect
     K = bwd.Ks[k]
     d = bwd.ds[k]
@@ -175,9 +192,11 @@ end
 """
 function update_gains!(
     bwd::BackwardTerms,
-    Q::ActionValueExpansion,
     k::Int
 )::Nothing
+    # Reference k-th action-value expansion
+    Q = bwd.Qs[k]
+
     # Get sparse LU factorization
     lu!(Q.uu_lu, sparse(Q.uu))
 
@@ -194,10 +213,12 @@ end
 function update_cost_prediction!(
     bwd::BackwardTerms,
     fwd::ForwardTerms,
-    Q::ActionValueExpansion,
-    V::ValueExpansion,
     k::Int
 )::Nothing
+    # Reference k-th action-value and value expansion
+    Q = bwd.Qs[k]
+    V = bwd.Vs[k]
+
     # Predicted change in cost
     # ΔJ1 += d'*Qu + f̃'*(Vx - Vxx*x)
     bwd.ΔJ1 += bwd.ds[k]'*Q.u + fwd.f̃s[k]'*(V.x - V.xx*fwd.xs[k])
@@ -220,26 +241,22 @@ function backward_pass!(
     fwd = cache.fwd
     bwd = cache.bwd
     tmp = cache.tmp
-    F = bwd.F
-    L = bwd.L
-    V = bwd.V
-    Q = bwd.Q
 
     # Reset predicted change in cost
     #bwd.ΔJ1 = 0.0
     #bwd.ΔJ2 = 0.0
 
     # Initialize value expansion
-    expand_Lterm!(V, tmp, fwd, params)
+    expand_Lterm!(bwd, tmp, fwd, params)
 
     # Backward Riccati
     @inbounds for k = (params.N-1) : -1 : 1
-        expand_L!(L, tmp, fwd, params, k)   # Stage cost expansion
-        expand_F!(F, tmp, fwd, params, k)   # Dynamics expansion
-        expand_Q!(Q, tmp, V, L, F)          # Action-value expansion
-        update_gains!(bwd, Q, k)            # Update feedback and feedforward
-        expand_V!(V, tmp, Q, fwd, bwd, k)   # Value expansion
-        #update_cost_prediction!(bwd, fwd, Q, V, k)
+        expand_L!(bwd, tmp, fwd, params, k) # Stage cost expansion
+        expand_F!(bwd, tmp, fwd, params, k) # Dynamics expansion
+        expand_Q!(bwd, tmp, k)              # Action-value expansion
+        update_gains!(bwd, k)               # Update feedback and feedforward
+        expand_V!(bwd, tmp, fwd, k)         # Value expansion
+        #update_cost_prediction!(bwd, fwd, Qs, Vs, k)
     end
     return
 end

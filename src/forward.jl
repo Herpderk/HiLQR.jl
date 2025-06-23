@@ -127,7 +127,7 @@ function init_solver!(
     bwd = cache.bwd
 
     # Get regularizer matrix
-    mul!(bwd.Q.uu_μ, regularizer, I)
+    mul!(bwd.μ, regularizer, I)
 
     # Set initial conditions
     fwd.modes[1] = params.sys.modes[params.mI]

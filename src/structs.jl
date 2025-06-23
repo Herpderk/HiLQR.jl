@@ -231,7 +231,6 @@ mutable struct ActionValueExpansion
     xu::Matrix{Float64}
     ux::Matrix{Float64}
     uu::Matrix{Float64}
-    uu_μ::Matrix{Float64}
     uu_lu::SparseArrays.UMFPACK.UmfpackLU{Float64, Int64}
 end
 
@@ -245,21 +244,21 @@ function ActionValueExpansion(
     Qxu = zeros(nx, nu)
     Qux = zeros(nu, nx)
     Quu = zeros(nu, nu)
-    Quu_μ = zeros(nu, nu)
     Quu_lu = lu(sparse(rand(nu, nu)))
-    return ActionValueExpansion(Qx, Qu, Qxx, Qxu, Qux, Quu, Quu_μ, Quu_lu)
+    return ActionValueExpansion(Qx, Qu, Qxx, Qxu, Qux, Quu, Quu_lu)
 end
 
 
 """
 """
 mutable struct BackwardTerms
-    F::FlowExpansion
-    L::CostExpansion
-    V::ValueExpansion
-    Q::ActionValueExpansion
+    Fs::Vector{FlowExpansion}
+    Ls::Vector{CostExpansion}
+    Vs::Vector{ValueExpansion}
+    Qs::Vector{ActionValueExpansion}
     Ks::Vector{VecOrMat{Float64}}
     ds::Vector{Vector{Float64}}
+    μ::Matrix{Float64}
     ΔJ1::Float64
     ΔJ2::Float64
 end
@@ -269,15 +268,16 @@ function BackwardTerms(
     nu::Int,
     N::Int
 )::BackwardTerms
-    F = FlowExpansion(nx, nu)
-    L = CostExpansion(nx, nu)
-    V = ValueExpansion(nx)
-    Q = ActionValueExpansion(nx, nu)
+    Fs = [FlowExpansion(nx, nu) for k = 1:(N-1)]
+    Ls = [CostExpansion(nx, nu) for k = 1:(N-1)]
+    Vs = [ValueExpansion(nx) for k = 1:N]
+    Qs = [ActionValueExpansion(nx, nu) for k = 1:(N-1)]
     Ks = [zeros(nu, nx) for k = 1:(N-1)]
     ds = [zeros(nu) for k = 1:(N-1)]
+    μ = zeros(nu, nu)
     ΔJ1 = Inf
     ΔJ2 = Inf
-    return BackwardTerms(F, L, V, Q, Ks, ds, ΔJ1, ΔJ2)
+    return BackwardTerms(Fs, Ls, Vs, Qs, Ks, ds, μ, ΔJ1, ΔJ2)
 end
 
 function BackwardTerms(
@@ -292,7 +292,6 @@ end
 mutable struct TemporaryArrays
     x::Vector{Float64}
     u::Vector{Float64}
-    u2::Vector{Float64}
 
     xx1::Matrix{Float64}
     xx2::Matrix{Float64}
@@ -311,7 +310,6 @@ function TemporaryArrays(
 )::TemporaryArrays
     x = zeros(nx)
     u = zeros(nu)
-    u2 = zeros(nu)
     xx1 = zeros(nx, nx)
     xx2 = zeros(nx, nx)
     uu = zeros(nu, nu)
@@ -319,7 +317,7 @@ function TemporaryArrays(
     ux = zeros(nu, nx)
     xx_hess = DiffResults.HessianResult(zeros(nx))
     uu_hess = DiffResults.HessianResult(zeros(nu))
-    return TemporaryArrays(x, u, u2, xx1, xx2, uu, xu, ux, xx_hess, uu_hess)
+    return TemporaryArrays(x, u, xx1, xx2, uu, xu, ux, xx_hess, uu_hess)
 end
 
 function TemporaryArrays(
