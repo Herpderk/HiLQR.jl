@@ -1,4 +1,4 @@
-module SiLQR
+module HiLQR
 
 using LinearAlgebra
 using SparseArrays
@@ -14,11 +14,9 @@ using HybridRobotDynamics:
         HybridSystem
 
 include("utils.jl")
-include("objective.jl")
 include("structs.jl")
-include("expansion.jl")
-include("solver/backward.jl")
-include("solver/forward.jl")
-include("solver/solver.jl")
+include("backward.jl")
+include("forward.jl")
+include("solver.jl")
 
-end # module SiLQR
+end # module HiLQR
