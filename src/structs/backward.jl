@@ -86,9 +86,11 @@ mutable struct BackwardTerms
     Ls::Vector{CostExpansion}
     Vs::Vector{ValueExpansion}
     Qs::Vector{ActionValueExpansion}
+
     Ks::Vector{VecOrMat{Float64}}
     ds::Vector{Vector{Float64}}
     μ::Matrix{Float64}
+
     ΔJ1::Float64
     ΔJ2::Float64
 end
@@ -102,9 +104,11 @@ function BackwardTerms(
     Ls = [CostExpansion(nx, nu) for k = 1:(N-1)]
     Vs = [ValueExpansion(nx) for k = 1:N]
     Qs = [ActionValueExpansion(nx, nu) for k = 1:(N-1)]
+
     Ks = [zeros(nu, nx) for k = 1:(N-1)]
     ds = [zeros(nu) for k = 1:(N-1)]
     μ = zeros(nu, nu)
+
     ΔJ1 = Inf
     ΔJ2 = Inf
     return BackwardTerms(Fs, Ls, Vs, Qs, Ks, ds, μ, ΔJ1, ΔJ2)

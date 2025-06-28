@@ -21,11 +21,13 @@ function TemporaryArrays(
 )::TemporaryArrays
     x = zeros(nx)
     u = zeros(nu)
+
     xx1 = zeros(nx, nx)
     xx2 = zeros(nx, nx)
     uu = zeros(nu, nu)
     xu = zeros(nx, nu)
     ux = zeros(nu, nx)
+
     xx_hess = DiffResults.HessianResult(zeros(nx))
     uu_hess = DiffResults.HessianResult(zeros(nu))
     return TemporaryArrays(x, u, xx1, xx2, uu, xu, ux, xx_hess, uu_hess)

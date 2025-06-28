@@ -9,8 +9,8 @@ function nonlinear_rollout!(
     defect_rate::Float64
 )::Nothing
     # Close defects
-    c = 1.0 - fwd.α * clamp(defect_rate, 0.0, 1.0)
-    mul!.(fwd.f̃s, c, sol.f̃s)
+    fwd.c = 1.0 - fwd.α * defect_rate
+    mul!.(fwd.f̃s, fwd.c, sol.f̃s)
 
     # Initialize trajectory with previous solution
     BLAS.copy!.(fwd.xs, sol.xs)
@@ -72,7 +72,7 @@ function forward_pass!(
     tmp = cache.tmp
 
     # Initialize line search step size and trajectory cost
-    fwd.α = clamp(max_step, 0.0, 1.0)
+    fwd.α = max_step
     Jls = 0.0
 
     # Iterate backtracking line search
@@ -110,56 +110,5 @@ function forward_pass!(
     BLAS.copy!.(sol.us, fwd.us)
     BLAS.copy!.(sol.f̃s, fwd.f̃s)
     sol.f̃norm = norm(sol.f̃s, Inf)
-    return
-end
-
-"""
-"""
-function init_solver!(
-    sol::Solution,
-    cache::Cache,
-    params::Parameters,
-    regularizer::Float64,
-    multishoot::Bool
-)::Nothing
-    # Get references to Cache structs
-    fwd = cache.fwd
-    bwd = cache.bwd
-
-    # Get regularizer matrix
-    mul!(bwd.μ, regularizer, I)
-
-    # Set initial conditions
-    fwd.modes[1] = params.sys.modes[params.mI]
-    BLAS.copy!(sol.xs[1], params.x0)
-
-    # Initialize gains
-    fill!.(bwd.Ks, 0.0)
-    fill!.(bwd.ds, 0.0)
-
-    # Initialize trajectory cost
-    sol.J = Inf
-
-    if multishoot
-        # Initialize defects
-        @inbounds for k = 1:(params.N-1)
-            BLAS.copy!(sol.f̃s[k], params.igtr(   # TODO handle mode schedule
-                fwd.modes[1].flow, sol.xs[k], sol.us[k], params.Δt
-            ))
-            BLAS.axpy!(-1.0, sol.xs[k+1], sol.f̃s[k])
-        end
-
-        # Initialize forward terms
-        BLAS.copy!.(fwd.xs, sol.xs)
-        BLAS.copy!.(fwd.us, sol.us)
-        BLAS.copy!.(fwd.f̃s, sol.f̃s)
-        fwd.α = 0.0
-    else
-        # Set defects to 0
-        fill!.(sol.f̃s, 0.0)
-
-        # Roll out with a full newton step
-        forward_pass!(sol, cache, params, 1.0, 1.0, 1)
-    end
     return
 end

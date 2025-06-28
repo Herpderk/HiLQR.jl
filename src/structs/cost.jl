@@ -6,6 +6,7 @@ Callable struct containing a given problem's dimensions, indices, and cost funct
 mutable struct TrajectoryCost
     stage::Function
     terminal::Function
+
     stage_ℓs::Vector{<:DiffFloat64}
     stage_xs::Vector{Vector{<:DiffFloat64}}
     stage_us::Vector{Vector{<:DiffFloat64}}
