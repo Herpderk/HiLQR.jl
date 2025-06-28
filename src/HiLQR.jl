@@ -14,7 +14,11 @@ using HybridRobotDynamics:
         HybridSystem
 
 include("utils.jl")
-include("structs.jl")
+include("structs/cost.jl")
+include("structs/backward.jl")
+include("structs/forward.jl")
+include("structs/misc.jl")
+include("structs/solver.jl")
 include("backward.jl")
 include("forward.jl")
 include("solver.jl")
