@@ -2,7 +2,8 @@
 """
 mutable struct Parameters
     sys::HybridSystem
-    cost::TrajectoryCost
+    fwd_cost::TrajectoryCost
+    bwd_cost::TrajectoryCost
     igtr::ExplicitIntegrator
     N::Int
     Δt::Float64
@@ -10,6 +11,27 @@ mutable struct Parameters
     urefs::Vector{Vector{Float64}}
     x0::Vector{Float64}
     mI::Symbol
+end
+
+function Parameters(
+    sys::HybridSystem,
+    fwd_stage_cost::Function,
+    fwd_term_cost::Function,
+    bwd_stage_cost::Function,
+    bwd_term_cost::Function,
+    integrator::ExplicitIntegrator,
+    N::Int,
+    Δt::Float64,
+    xrefs::Vector{Vector{Float64}} =Vector{Float64}[],
+    urefs::Vector{Vector{Float64}} = Vector{Float64}[],
+    x0::Vector{Float64} = Float64[],
+    mI::Symbol = :nothing
+)::Parameters
+    fwd_cost = TrajectoryCost(fwd_stage_cost, fwd_term_cost, sys.nx, sys.nu, N)
+    bwd_cost = TrajectoryCost(bwd_stage_cost, bwd_term_cost, sys.nx, sys.nu, N)
+    return Parameters(
+        sys, fwd_cost, bwd_cost, integrator, N, Δt, xrefs, urefs, x0, mI
+    )
 end
 
 function Parameters(
@@ -24,8 +46,20 @@ function Parameters(
     x0::Vector{Float64} = Float64[],
     mI::Symbol = :nothing,
 )::Parameters
-    cost = TrajectoryCost(stage_cost, term_cost, sys.nx, sys.nu, N)
-    return Parameters(sys, cost, integrator, N, Δt, xrefs, urefs, x0, mI)
+    return Parameters(
+        sys,
+        stage_cost,
+        term_cost,
+        stage_cost,
+        term_cost,
+        integrator,
+        N,
+        Δt,
+        xrefs,
+        urefs,
+        x0,
+        mI
+    )
 end
 
 
