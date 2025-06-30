@@ -1,6 +1,6 @@
 """
 """
-mutable struct Parameters
+mutable struct ProblemParameters
     rev_trns_dict::Dict{Transition, Symbol}
     fwd_sys::HybridSystem
     bwd_sys::Union{Function, HybridSystem}
@@ -15,7 +15,7 @@ mutable struct Parameters
     mI::Symbol
 end
 
-function Parameters(
+function ProblemParameters(
     fwd_sys::HybridSystem,
     bwd_sys::Union{Function, HybridSystem},
     fwd_stage_cost::Function,
@@ -29,7 +29,7 @@ function Parameters(
     urefs::Vector{Vector{Float64}} = Vector{Float64}[],
     x0::Vector{Float64} = Float64[],
     mI::Symbol = :nothing
-)::Parameters
+)::ProblemParameters
     # Assert that forward and backward systems have the same dimensions
     if fwd_sys.nx != bwd_sys.nx
         ArgumentError("Forward and backward system state dimensions must match")
@@ -59,7 +59,7 @@ function Parameters(
     bwd_cost = TrajectoryCost(
         bwd_stage_cost, bwd_term_cost, bwd_sys.nx, bwd_sys.nu, N
     )
-    return Parameters(
+    return ProblemParameters(
         rev_trns_dict,
         fwd_sys,
         bwd_sys,
@@ -75,7 +75,7 @@ function Parameters(
     )
 end
 
-function Parameters(
+function ProblemParameters(
     sys::HybridSystem,
     stage_cost::Function,
     term_cost::Function,
@@ -86,8 +86,8 @@ function Parameters(
     urefs::Vector{Vector{Float64}} = Vector{Float64}[],
     x0::Vector{Float64} = Float64[],
     mI::Symbol = :nothing,
-)::Parameters
-    return Parameters(
+)::ProblemParameters
+    return ProblemParameters(
         sys,
         sys,
         stage_cost,
@@ -129,7 +129,7 @@ function Solution(
 end
 
 function Solution(
-    params::Parameters
+    params::ProblemParameters
 )::Solution
     return Solution(params.fwd_sys.nx, params.fwd_sys.nu, params.N)
 end
@@ -137,19 +137,58 @@ end
 
 """
 """
-mutable struct Cache
+mutable struct SolverCache
     fwd::ForwardTerms
     bwd::BackwardTerms
     tmp::TemporaryArrays
 end
 
-function Cache(
-    params::Parameters
-)::Cache
+function SolverCache(
+    params::ProblemParameters
+)::SolverCache
     fwd = ForwardTerms(
         params.fwd_sys, params.fwd_sys.nx, params.fwd_sys.nu, params.N
     )
     bwd = BackwardTerms(params.bwd_sys.nx, params.bwd_sys.nu, params.N)
     tmp = TemporaryArrays(params.bwd_sys.nx, params.bwd_sys.nu)
-    return Cache(fwd, bwd, tmp)
+    return SolverCache(fwd, bwd, tmp)
+end
+
+
+"""
+"""
+mutable struct SolverOptions
+    regularizer::Float64
+    max_step::Float64
+    defect_rate::Float64
+    stat_tol::Float64
+    defect_tol::Float64
+    max_iter::Int
+    max_ls_iter::Int
+    multishoot::Bool
+    verbose::Bool
+end
+
+function SolverOptions(;
+    regularizer::Float64 = 1e-6,
+    max_step::Float64 = 1.0,
+    defect_rate::Float64 = 1.0,
+    stat_tol::Float64 = 1e-9,
+    defect_tol::Float64 = 1e-9,
+    max_iter::Int = 100,
+    max_ls_iter::Int = 20,
+    multishoot::Bool = false,
+    verbose::Bool = true,
+)::SolverOptions
+    return SolverOptions(
+        regularizer,
+        max_step,
+        defect_rate,
+        stat_tol,
+        defect_tol,
+        max_iter,
+        max_ls_iter,
+        multishoot,
+        verbose
+    )
 end
