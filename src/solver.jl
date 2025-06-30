@@ -23,8 +23,8 @@ function log(
     end
 
     τ = 0
-    for trn in cache.fwd.trns
-        τ = !isnothing(trn.val) ? τ+1 : τ
+    for trn in cache.fwd.trn_syms
+        τ = trn != NULL_TRANSITION ? τ+1 : τ
     end
 
     @printf(
@@ -86,7 +86,7 @@ function init_solver!(
     fill!.(bwd.ds, 0.0)
 
     # Set initial conditions
-    fwd.modes[1] = params.sys.modes[params.mI]
+    fwd.modes[1] = params.fwd_sys.modes[params.mI]
     BLAS.copy!(sol.xs[1], params.x0)
 
     # Initialize trajectory cost

@@ -5,6 +5,7 @@ using SparseArrays
 using ForwardDiff
 using DiffResults
 using Printf
+import Base: ==, hash
 
 using HybridRobotDynamics:
         ExplicitIntegrator,

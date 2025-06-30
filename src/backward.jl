@@ -11,7 +11,9 @@ function expand_Lterm!(
     BLAS.axpy!(-1.0, params.xrefs[end], tmp.x)
 
     # Get terminal cost hessian wrt x
-    tmp.xx_hess = ForwardDiff.hessian!(tmp.xx_hess, params.cost.terminal, tmp.x)
+    tmp.xx_hess = ForwardDiff.hessian!(
+        tmp.xx_hess, params.bwd_cost.terminal, tmp.x
+    )
 
     # Reference terminal value expansion
     V = bwd.Vs[end]
@@ -40,10 +42,10 @@ function expand_L!(
 
     # Get gradients and hessians of stage cost wrt x and u
     tmp.xx_hess = ForwardDiff.hessian!(
-        tmp.xx_hess, δx -> params.cost.stage(δx, tmp.u), tmp.x
+        tmp.xx_hess, δx -> params.bwd_cost.stage(δx, tmp.u), tmp.x
     )
     tmp.uu_hess = ForwardDiff.hessian!(
-        tmp.uu_hess, δu -> params.cost.stage(tmp.x, δu), tmp.u
+        tmp.uu_hess, δu -> params.bwd_cost.stage(tmp.x, δu), tmp.u
     )
 
     # Reference k-th stage cost expansion
@@ -74,8 +76,9 @@ function expand_F!(
     mode = fwd.modes[k]
 
     # Perform salted update if transition is detected
-    trn = fwd.trns[k].val
-    if typeof(trn) === Transition
+    trn_sym = fwd.trn_syms[k]
+    if trn_sym != NULL_TRANSITION
+        trn = params.bwd_sys.transitions[trn_sym]
         BLAS.copy!(tmp.xx1, trn.saltation(x, u))
 
         # Hybrid dynamics jacobian wrt x: salt * Fx

@@ -1,15 +1,8 @@
 """
 """
-mutable struct NullTransition
-    val::Union{Transition, Nothing}
-end
-
-
-"""
-"""
 mutable struct ForwardTerms
     modes::Vector{HybridMode}
-    trns::Vector{NullTransition}
+    trn_syms::Vector{Symbol}
 
     xs::Vector{Vector{Float64}}
     us::Vector{Vector{Float64}}
@@ -28,7 +21,7 @@ function ForwardTerms(
 )::ForwardTerms
     mode = first(values(sys.modes))
     modes = [mode for k = 1:N]
-    trns = [NullTransition(nothing) for k = 1:(N-1)]
+    trn_syms = [NULL_TRANSITION for k = 1:(N-1)]
 
     xs = [zeros(nx) for k = 1:N]
     us = [zeros(nu) for k = 1:(N-1)]
@@ -37,5 +30,5 @@ function ForwardTerms(
     c = 0.0
     α = 0.0
     ΔJ = 0.0
-    return ForwardTerms(modes, trns, xs, us, f̃s, c, α, ΔJ)
+    return ForwardTerms(modes, trn_syms, xs, us, f̃s, c, α, ΔJ)
 end
