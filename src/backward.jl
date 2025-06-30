@@ -76,8 +76,9 @@ function expand_F!(
     mode = fwd.modes[k]
 
     # Perform salted update if transition is detected
-    trn = fwd.trns[k].val
-    if typeof(trn) === Transition
+    trn_sym = fwd.trn_syms[k]
+    if trn_sym != NULL_TRANSITION
+        trn = params.bwd_sys.transitions[trn_sym]
         BLAS.copy!(tmp.xx1, trn.saltation(x, u))
 
         # Hybrid dynamics jacobian wrt x: salt * Fx
