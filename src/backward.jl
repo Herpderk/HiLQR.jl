@@ -4,7 +4,7 @@ function expand_Lterm!(
     bwd::BackwardTerms,
     tmp::TemporaryArrays,
     fwd::ForwardTerms,
-    params::Parameters
+    params::ProblemParameters
 )::Nothing
     # Get terminal x error
     BLAS.copy!(tmp.x, fwd.xs[end])
@@ -30,7 +30,7 @@ function expand_L!(
     bwd::BackwardTerms,
     tmp::TemporaryArrays,
     fwd::ForwardTerms,
-    params::Parameters,
+    params::ProblemParameters,
     k::Int
 )::Nothing
     # Get k-th x and u errors
@@ -66,7 +66,7 @@ function expand_F!(
     bwd::BackwardTerms,
     tmp::TemporaryArrays,
     fwd::ForwardTerms,
-    params::Parameters,
+    params::ProblemParameters,
     k::Int
 )::Nothing
     # Reference k-th flow expansion, state, input, and mode
@@ -237,10 +237,10 @@ end
 """
 """
 function backward_pass!(
-    cache::Cache,
-    params::Parameters
+    cache::SolverCache,
+    params::ProblemParameters
 )::Nothing
-    # Get references to Cache structs
+    # Get references to SolverCache structs
     fwd = cache.fwd
     bwd = cache.bwd
     tmp = cache.tmp

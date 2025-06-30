@@ -5,7 +5,7 @@ function nonlinear_rollout!(
     bwd::BackwardTerms,
     tmp::TemporaryArrays,
     sol::Solution,
-    params::Parameters,
+    params::ProblemParameters,
     defect_rate::Float64
 )::Nothing
     # Close defects
@@ -60,13 +60,13 @@ end
 """
 function forward_pass!(
     sol::Solution,
-    cache::Cache,
-    params::Parameters,
+    cache::SolverCache,
+    params::ProblemParameters,
     max_step::Float64,
     defect_rate::Float64,
     ls_iter::Int
 )::Nothing
-    # Get references to Cache structs
+    # Get references to SolverCache structs
     fwd = cache.fwd
     bwd = cache.bwd
     tmp = cache.tmp
