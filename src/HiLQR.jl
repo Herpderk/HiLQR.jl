@@ -5,23 +5,39 @@ using SparseArrays
 using ForwardDiff
 using DiffResults
 using Printf
+using Plots
 import Base: ==, hash
 
-using HybridRobotDynamics:
+#= :
         ExplicitIntegrator,
         Transition,
         SaltationMatrix,
         HybridMode,
-        HybridSystem
+        HybridSystem =#
+
+export
+        HybridMode,
+        Transition,
+        HybridSystem,
+        ProblemParameters,
+        Solution,
+        SolverCache,
+        SolverOptions,
+        solve!,
+        solve,
+        plot_2d_states
 
 include("utils.jl")
-include("structs/cost.jl")
-include("structs/backward.jl")
-include("structs/forward.jl")
-include("structs/misc.jl")
-include("structs/solver.jl")
-include("backward.jl")
-include("forward.jl")
-include("solver.jl")
+include("cost.jl")
+include("dynamics.jl")
+include("integrators.jl")
+include("plot.jl")
+include("solver/caches/backward.jl")
+include("solver/caches/forward.jl")
+include("solver/caches/temporary.jl")
+include("solver/interface.jl")
+include("solver/backward_pass.jl")
+include("solver/forward_pass.jl")
+include("solver/main.jl")
 
 end # module HiLQR

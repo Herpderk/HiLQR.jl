@@ -81,7 +81,7 @@ end
 
 """
 """
-mutable struct BackwardTerms
+mutable struct BackwardCache
     Fs::Vector{FlowExpansion}
     Ls::Vector{CostExpansion}
     Vs::Vector{ValueExpansion}
@@ -95,11 +95,11 @@ mutable struct BackwardTerms
     ΔJ2::Float64
 end
 
-function BackwardTerms(
+function BackwardCache(
     nx::Int,
     nu::Int,
     N::Int
-)::BackwardTerms
+)::BackwardCache
     Fs = [FlowExpansion(nx, nu) for k = 1:(N-1)]
     Ls = [CostExpansion(nx, nu) for k = 1:(N-1)]
     Vs = [ValueExpansion(nx) for k = 1:N]
@@ -111,5 +111,5 @@ function BackwardTerms(
 
     ΔJ1 = Inf
     ΔJ2 = Inf
-    return BackwardTerms(Fs, Ls, Vs, Qs, Ks, ds, μ, ΔJ1, ΔJ2)
+    return BackwardCache(Fs, Ls, Vs, Qs, Ks, ds, μ, ΔJ1, ΔJ2)
 end

@@ -1,9 +1,9 @@
 """
 """
 function nonlinear_rollout!(
-    fwd::ForwardTerms,
-    bwd::BackwardTerms,
-    tmp::TemporaryArrays,
+    fwd::ForwardCache,
+    bwd::BackwardCache,
+    tmp::TemporaryCache,
     sol::Solution,
     params::ProblemParameters,
     defect_rate::Float64
@@ -28,15 +28,17 @@ function nonlinear_rollout!(
         BLAS.axpy!(-1.0, tmp.u, fwd.us[k])
 
         # Integrate smooth dynamics
-        BLAS.copy!(fwd.xs[k+1], params.igtr(
-            fwd.modes[k].flow, fwd.xs[k], fwd.us[k], params.Δt
-        ))
+        BLAS.copy!(
+            fwd.xs[k+1],
+            rk4(fwd.xs[k], fwd.us[k], params.Δt, fwd.modes[k].flow)
+        )
 
         # Reset and update mode if a guard is hit
         Rflag = false
         @inbounds for (trn, mJ) in fwd.modes[k].transitions
-            if trn.guard(fwd.xs[k+1]) < 0.0
-                BLAS.copy!(fwd.xs[k+1], trn.reset(fwd.xs[k+1]))
+            if trn.guard(fwd.xs[k+1]) <= 0.0
+                BLAS.copy!(tmp.x, fwd.xs[k+1])
+                trn.reset!(fwd.xs[k+1], tmp.x)
                 fwd.trn_syms[k] = params.rev_trns_dict[trn]
                 fwd.modes[k+1] = mJ
                 Rflag = true

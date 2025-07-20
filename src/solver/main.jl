@@ -88,11 +88,12 @@ function init_solver!(
     sol.J = Inf
 
     if multishoot
-        # Initialize defects
+        # Initialize defects                # TODO handle mode schedule
         @inbounds for k = 1:(params.N-1)
-            BLAS.copy!(sol.f̃s[k], params.igtr(   # TODO handle mode schedule
-                fwd.modes[1].flow, sol.xs[k], sol.us[k], params.Δt
-            ))
+            BLAS.copy!(
+                sol.f̃s[k],
+                rk4(sol.xs[k], sol.us[k], params.Δt, fwd.modes[1].flow)
+            )
             BLAS.axpy!(-1.0, sol.xs[k+1], sol.f̃s[k])
         end
 

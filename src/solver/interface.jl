@@ -6,7 +6,6 @@ mutable struct ProblemParameters
     bwd_sys::Union{Function, HybridSystem}
     fwd_cost::TrajectoryCost
     bwd_cost::TrajectoryCost
-    igtr::ExplicitIntegrator
     N::Int
     Δt::Float64
     xrefs::Vector{Vector{Float64}}
@@ -22,7 +21,6 @@ function ProblemParameters(
     fwd_term_cost::Function,
     bwd_stage_cost::Function,
     bwd_term_cost::Function,
-    integrator::ExplicitIntegrator,
     N::Int,
     Δt::Float64,
     xrefs::Vector{Vector{Float64}} = Vector{Float64}[],
@@ -30,16 +28,16 @@ function ProblemParameters(
     x0::Vector{Float64} = Float64[],
     mI::Symbol = :nothing
 )::ProblemParameters
-    # Assert that forward and backward systems have the same dimensions
-    if fwd_sys.nx != bwd_sys.nx
-        ArgumentError("Forward and backward system state dimensions must match")
-    end
-    if fwd_sys.nu != bwd_sys.nu
-        ArgumentError("Forward and backward input dimensions must match")
-    end
-
-    # Assert that forward and backward transitions match
     if typeof(bwd_sys) === HybridSystem
+        # Assert that forward and backward systems have the same dimensions
+        if fwd_sys.nx != bwd_sys.nx
+            ArgumentError("Forward and backward system state dimensions must match")
+        end
+        if fwd_sys.nu != bwd_sys.nu
+            ArgumentError("Forward and backward input dimensions must match")
+        end
+
+        # Assert that forward and backward transitions match
         fwd_trns_symbols = collect(keys(fwd_sys.transitions))
         bwd_trns_symbols = collect(keys(bwd_sys.transitions))
         if fwd_trns_symbols != bwd_trns_symbols
@@ -52,20 +50,20 @@ function ProblemParameters(
         rev_trns_dict = Dict{Transition, Symbol}()
     end
 
-    # Generate forward and backward cost functions
+    # Construct forward and backward cost functions
     fwd_cost = TrajectoryCost(
         fwd_stage_cost, fwd_term_cost, fwd_sys.nx, fwd_sys.nu, N
     )
     bwd_cost = TrajectoryCost(
-        bwd_stage_cost, bwd_term_cost, bwd_sys.nx, bwd_sys.nu, N
+        bwd_stage_cost, bwd_term_cost, fwd_sys.nx, fwd_sys.nu, N
     )
+
     return ProblemParameters(
         rev_trns_dict,
         fwd_sys,
         bwd_sys,
         fwd_cost,
         bwd_cost,
-        integrator,
         N,
         Δt,
         xrefs,
@@ -79,7 +77,6 @@ function ProblemParameters(
     sys::HybridSystem,
     stage_cost::Function,
     term_cost::Function,
-    integrator::ExplicitIntegrator,
     N::Int,
     Δt::Float64,
     xrefs::Vector{Vector{Float64}} =Vector{Float64}[],
@@ -94,7 +91,6 @@ function ProblemParameters(
         term_cost,
         stage_cost,
         term_cost,
-        integrator,
         N,
         Δt,
         xrefs,
@@ -138,19 +134,19 @@ end
 """
 """
 mutable struct SolverCache
-    fwd::ForwardTerms
-    bwd::BackwardTerms
-    tmp::TemporaryArrays
+    fwd::ForwardCache
+    bwd::BackwardCache
+    tmp::TemporaryCache
 end
 
 function SolverCache(
     params::ProblemParameters
 )::SolverCache
-    fwd = ForwardTerms(
+    fwd = ForwardCache(
         params.fwd_sys, params.fwd_sys.nx, params.fwd_sys.nu, params.N
     )
-    bwd = BackwardTerms(params.bwd_sys.nx, params.bwd_sys.nu, params.N)
-    tmp = TemporaryArrays(params.bwd_sys.nx, params.bwd_sys.nu)
+    bwd = BackwardCache(params.fwd_sys.nx, params.fwd_sys.nu, params.N)
+    tmp = TemporaryCache(params.fwd_sys.nx, params.fwd_sys.nu)
     return SolverCache(fwd, bwd, tmp)
 end
 

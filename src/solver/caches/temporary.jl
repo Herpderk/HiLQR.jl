@@ -1,8 +1,8 @@
 """
 """
-mutable struct TemporaryArrays
-    x::Vector{Float64}
-    u::Vector{Float64}
+mutable struct TemporaryCache
+    x::Vector{<:DiffFloat64}
+    u::Vector{<:DiffFloat64}
 
     xx1::Matrix{Float64}
     xx2::Matrix{Float64}
@@ -11,14 +11,16 @@ mutable struct TemporaryArrays
     xu::Matrix{Float64}
     ux::Matrix{Float64}
 
+    x_dual::AbstractVector
+
     xx_hess::DiffResults.DiffResult
     uu_hess::DiffResults.DiffResult
 end
 
-function TemporaryArrays(
+function TemporaryCache(
     nx::Int,
     nu::Int
-)::TemporaryArrays
+)::TemporaryCache
     x = zeros(nx)
     u = zeros(nu)
 
@@ -28,7 +30,21 @@ function TemporaryArrays(
     xu = zeros(nx, nu)
     ux = zeros(nu, nx)
 
+    x_dual = zeros(nx)
+
     xx_hess = DiffResults.HessianResult(zeros(nx))
     uu_hess = DiffResults.HessianResult(zeros(nu))
-    return TemporaryArrays(x, u, xx1, xx2, uu, xu, ux, xx_hess, uu_hess)
+
+    return TemporaryCache(
+        x,
+        u,
+        xx1,
+        xx2,
+        uu,
+        xu,
+        ux,
+        x_dual,
+        xx_hess,
+        uu_hess
+    )
 end

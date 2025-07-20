@@ -1,6 +1,6 @@
 """
 """
-mutable struct ForwardTerms
+mutable struct ForwardCache
     modes::Vector{HybridMode}
     trn_syms::Vector{Symbol}
 
@@ -13,12 +13,12 @@ mutable struct ForwardTerms
     ΔJ::Float64
 end
 
-function ForwardTerms(
+function ForwardCache(
     sys::HybridSystem,
     nx::Int,
     nu::Int,
     N::Int
-)::ForwardTerms
+)::ForwardCache
     mode = first(values(sys.modes))
     modes = [mode for k = 1:N]
     trn_syms = [NULL_TRANSITION for k = 1:(N-1)]
@@ -30,5 +30,5 @@ function ForwardTerms(
     c = 0.0
     α = 0.0
     ΔJ = 0.0
-    return ForwardTerms(modes, trn_syms, xs, us, f̃s, c, α, ΔJ)
+    return ForwardCache(modes, trn_syms, xs, us, f̃s, c, α, ΔJ)
 end

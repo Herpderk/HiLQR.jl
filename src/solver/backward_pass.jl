@@ -1,9 +1,9 @@
 """
 """
-function expand_Lterm!(
-    bwd::BackwardTerms,
-    tmp::TemporaryArrays,
-    fwd::ForwardTerms,
+function expand_term_L!(
+    bwd::BackwardCache,
+    tmp::TemporaryCache,
+    fwd::ForwardCache,
     params::ProblemParameters
 )::Nothing
     # Get terminal x error
@@ -26,10 +26,10 @@ end
 
 """
 """
-function expand_L!(
-    bwd::BackwardTerms,
-    tmp::TemporaryArrays,
-    fwd::ForwardTerms,
+function expand_stage_L!(
+    bwd::BackwardCache,
+    tmp::TemporaryCache,
+    fwd::ForwardCache,
     params::ProblemParameters,
     k::Int
 )::Nothing
@@ -63,9 +63,9 @@ end
 """
 """
 function expand_F!(
-    bwd::BackwardTerms,
-    tmp::TemporaryArrays,
-    fwd::ForwardTerms,
+    bwd::BackwardCache,
+    tmp::TemporaryCache,
+    fwd::ForwardCache,
     params::ProblemParameters,
     k::Int
 )::Nothing
@@ -77,29 +77,56 @@ function expand_F!(
 
     # Perform salted update if transition is detected
     trn_sym = fwd.trn_syms[k]
-    if trn_sym != NULL_TRANSITION
-        trn = params.bwd_sys.transitions[trn_sym]
-        BLAS.copy!(tmp.xx1, trn.saltation(x, u))
+    if typeof(params.bwd_sys) === HybridSystem
+        if trn_sym != NULL_TRANSITION
+            # Get saltation matrix
+            trn = params.bwd_sys.transitions[trn_sym]
+            trn.saltation!(tmp.xx1, x, u)
 
-        # Hybrid dynamics jacobian wrt x: salt * Fx
-        ForwardDiff.jacobian!(
-            tmp.xx2, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
-        )
-        mul!(F.x, tmp.xx1, tmp.xx2)
+            # Get hybrid dynamics jacobian wrt x: Ξ*Fx
+            ForwardDiff.jacobian!(
+                tmp.xx2,
+                δx -> rk4(δx, u, params.Δt, mode.flow),
+                x
+            )
+            mul!(F.x, tmp.xx1, tmp.xx2)
 
-        # Hybrid dynamics jacobian wrt u: salt * Fu
-        ForwardDiff.jacobian!(
-            tmp.xu, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
-        )
-        mul!(F.u, tmp.xx1, tmp.xu)
+            # Hybrid dynamics jacobian wrt u: Ξ*Fu
+            ForwardDiff.jacobian!(
+                tmp.xu,
+                δu -> rk4(x, δu, params.Δt, mode.flow),
+                u
+            )
+            mul!(F.u, tmp.xx1, tmp.xu)
+        else
+            # Get dynamics jacobian wrt x
+            #copy!(tmp.x_dual, x)
+            ForwardDiff.jacobian!(
+                F.x,
+                δx -> rk4(δx, u, params.Δt, mode.flow),
+                x
+            )
+            # Get dynamics jacobian wrt u
+            ForwardDiff.jacobian!(
+                F.u,
+                δu -> rk4(x, δu, params.Δt, mode.flow),
+                u
+            )
+        end
     else
-        # Dynamics jacobian wrt x
+        # Get dynamics jacobian wrt x
+        #copy!(tmp.x_dual, x)
         ForwardDiff.jacobian!(
-            F.x, δx -> params.igtr(mode.flow, δx, u, params.Δt), x
+            F.x,
+            δx -> rk4(x1, δx, u, params.Δt, params.bwd_sys),
+            x
         )
-        # Dynamics jacobian wrt u
+        # Get dynamics jacobian wrt u
         ForwardDiff.jacobian!(
-            F.u, δu -> params.igtr(mode.flow, x, δu, params.Δt), u
+            F.u,
+            δu -> rk4(x, δu, params.Δt, params.bwd_sys),
+            tmp.x_dual,
+            u
         )
     end
     return
@@ -108,8 +135,8 @@ end
 """
 """
 function expand_Q!(
-    bwd::BackwardTerms,
-    tmp::TemporaryArrays,
+    bwd::BackwardCache,
+    tmp::TemporaryCache,
     k::Int
 )::Nothing
     # Reference k-th expansions
@@ -152,9 +179,9 @@ end
 """
 """
 function expand_V!(
-    bwd::BackwardTerms,
-    tmp::TemporaryArrays,
-    fwd::ForwardTerms,
+    bwd::BackwardCache,
+    tmp::TemporaryCache,
+    fwd::ForwardCache,
     k::Int
 )::Nothing
     # Reference k-th value and action-value expansion
@@ -194,7 +221,7 @@ end
 """
 """
 function update_gains!(
-    bwd::BackwardTerms,
+    bwd::BackwardCache,
     k::Int
 )::Nothing
     # Reference k-th action-value expansion
@@ -214,8 +241,8 @@ end
 """
 """
 function update_cost_prediction!(
-    bwd::BackwardTerms,
-    fwd::ForwardTerms,
+    bwd::BackwardCache,
+    fwd::ForwardCache,
     k::Int
 )::Nothing
     # Reference k-th action-value and value expansion
@@ -250,11 +277,11 @@ function backward_pass!(
     #bwd.ΔJ2 = 0.0
 
     # Initialize value expansion
-    expand_Lterm!(bwd, tmp, fwd, params)
+    expand_term_L!(bwd, tmp, fwd, params)
 
     # Backward Riccati
     @inbounds for k = (params.N-1) : -1 : 1
-        expand_L!(bwd, tmp, fwd, params, k) # Stage cost expansion
+        expand_stage_L!(bwd, tmp, fwd, params, k) # Stage cost expansion
         expand_F!(bwd, tmp, fwd, params, k) # Dynamics expansion
         expand_Q!(bwd, tmp, k)              # Action-value expansion
         update_gains!(bwd, k)               # Update feedback and feedforward
