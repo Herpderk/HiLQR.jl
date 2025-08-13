@@ -3,7 +3,7 @@
 
 Derives the saltation matrix function for a given hybrid transition. Assumes the following function arguments: `flow(x, u)`, `guard(x)`, and `reset(x)`.
 """
-struct SaltationMatrix
+mutable struct SaltationMatrix
     flowI::Function
     flowJ::Function
     guard::Function
@@ -44,28 +44,28 @@ end
 
 Computes the saltation matrix for the corresponding hybrid transition in place.
 """
-function (trn_cache::SaltationMatrix)(
+function (cache::SaltationMatrix)(
     Ξ::Matrix{<:DiffFloat64},
     x::Vector{<:DiffFloat64},
     u::Vector{<:DiffFloat64}
 )::Nothing
     # Buffer arrays to be used for saltation matrix computation
-    BLAS.copy!(trn_cache.ẋI, trn_cache.flowI(x, u))
-    BLAS.copy!(trn_cache.ẋJ, trn_cache.flowJ(trn_cache.reset(x), u))
-    ForwardDiff.gradient!(trn_cache.∇g, δx -> trn_cache.guard(δx), x)
-    ForwardDiff.jacobian!(trn_cache.∇R, trn_cache.reset, x)
+    BLAS.copy!(cache.ẋI, cache.flowI(x, u))
+    BLAS.copy!(cache.ẋJ, cache.flowJ(cache.reset(x), u))
+    ForwardDiff.gradient!(cache.∇g, δx -> cache.guard(δx), x)
+    ForwardDiff.jacobian!(cache.∇R, cache.reset, x)
 
     # Ξ = ∇R + (ẋJ - ∇R*ẋI) * ∇g' / (∇g'*ẋI)
     # (ẋJ - ∇R*ẋI) * ∇g'
-    BLAS.copy!(trn_cache.xtmp, trn_cache.ẋJ)
-    mul!(trn_cache.xtmp, trn_cache.∇R, trn_cache.ẋI, -1.0, 1.0)
-    mul!(Ξ, trn_cache.xtmp, trn_cache.∇g')
+    BLAS.copy!(cache.xtmp, cache.ẋJ)
+    mul!(cache.xtmp, cache.∇R, cache.ẋI, -1.0, 1.0)
+    mul!(Ξ, cache.xtmp, cache.∇g')
 
     # ... / ∇g'*ẋI
-    rdiv!(Ξ, trn_cache.∇g' *trn_cache. ẋI)
+    rdiv!(Ξ, cache.∇g' *cache. ẋI)
 
     # ∇R + ...
-    axpy!(1.0, trn_cache.∇R, Ξ)
+    axpy!(1.0, cache.∇R, Ξ)
     return
 end
 

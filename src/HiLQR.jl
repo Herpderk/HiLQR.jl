@@ -4,6 +4,7 @@ using LinearAlgebra
 using SparseArrays
 using ForwardDiff
 using DiffResults
+using RigidBodyDynamics
 using Printf
 using Plots
 import Base: ==, hash
@@ -28,10 +29,11 @@ export
         solve,
         plot_2d_states
 
-include("utils.jl")
+include("consts.jl")
 include("cost.jl")
-include("dynamics.jl")
-include("integrators.jl")
+include("dynamics/RigidBodyDynamics.jl")
+include("dynamics/hybrid_system.jl")
+include("dynamics/integrators.jl")
 include("plot.jl")
 include("solver/caches/backward.jl")
 include("solver/caches/forward.jl")

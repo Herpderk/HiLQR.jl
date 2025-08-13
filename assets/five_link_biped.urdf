@@ -1,0 +1,143 @@
+<?xml version="1.0"?>
+<robot name="five_link_biped">
+
+  <!-- Torso -->
+  <link name="torso">
+    <inertial>
+      <origin xyz="0 0 0.25"/> <!-- CoM at center -->
+      <mass value="10"/>
+      <inertia ixx="0.1" iyy="0.1" izz="0.05" ixy="0.0" ixz="0.0" iyz="0.0"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="0.06 0.06 0.5"/> <!-- Depth x Width x Height -->
+      </geometry>
+      <origin xyz="0 0 0.25"/> <!-- box extends up from hip joint -->
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.06 0.06 0.5"/>
+      </geometry>
+      <origin xyz="0 0 0.25"/>
+    </collision>
+  </link>
+
+  <!-- Left thigh -->
+  <link name="left_thigh">
+    <inertial>
+      <origin xyz="0 0 -0.25"/>
+      <mass value="5"/>
+      <inertia ixx="0.05" iyy="0.05" izz="0.01" ixy="0.0" ixz="0.0" iyz="0.0"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="0.05 0.05 0.5"/>
+      </geometry>
+      <origin xyz="0 0 -0.25"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.05 0.05 0.5"/>
+      </geometry>
+      <origin xyz="0 0 -0.25"/>
+    </collision>
+  </link>
+
+  <!-- Left shin -->
+  <link name="left_shin">
+    <inertial>
+      <origin xyz="0 0 -0.25"/>
+      <mass value="4"/>
+      <inertia ixx="0.04" iyy="0.04" izz="0.008" ixy="0.0" ixz="0.0" iyz="0.0"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="0.04 0.04 0.5"/>
+      </geometry>
+      <origin xyz="0 0 -0.25"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.04 0.04 0.5"/>
+      </geometry>
+      <origin xyz="0 0 -0.25"/>
+    </collision>
+  </link>
+
+  <!-- Right thigh -->
+  <link name="right_thigh">
+    <inertial>
+      <origin xyz="0 0 -0.25"/>
+      <mass value="5"/>
+      <inertia ixx="0.05" iyy="0.05" izz="0.01" ixy="0.0" ixz="0.0" iyz="0.0"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="0.05 0.05 0.5"/>
+      </geometry>
+      <origin xyz="0 0 -0.25"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.05 0.05 0.5"/>
+      </geometry>
+      <origin xyz="0 0 -0.25"/>
+    </collision>
+  </link>
+
+  <!-- Right shin -->
+  <link name="right_shin">
+    <inertial>
+      <origin xyz="0 0 -0.25"/>
+      <mass value="4"/>
+      <inertia ixx="0.04" iyy="0.04" izz="0.008" ixy="0.0" ixz="0.0" iyz="0.0"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="0.04 0.04 0.5"/>
+      </geometry>
+      <origin xyz="0 0 -0.25"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.04 0.04 0.5"/>
+      </geometry>
+      <origin xyz="0 0 -0.25"/>
+    </collision>
+  </link>
+
+  <!-- Hip joints positioned at bottom of torso -->
+  <joint name="left_hip" type="revolute">
+    <parent link="torso"/>
+    <child link="left_thigh"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <!-- <limit lower="-1.57" upper="1.57"/> -->
+  </joint>
+
+  <!-- Knee joints -->
+  <joint name="left_knee" type="revolute">
+    <parent link="left_thigh"/>
+    <child link="left_shin"/>
+    <origin xyz="0 0 -0.5" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <!-- <limit lower="0" upper="2.62"/> -->
+  </joint>
+
+  <joint name="right_hip" type="revolute">
+    <parent link="torso"/>
+    <child link="right_thigh"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <!-- <limit lower="-1.57" upper="1.57"/> -->
+  </joint>
+
+  <joint name="right_knee" type="revolute">
+    <parent link="right_thigh"/>
+    <child link="right_shin"/>
+    <origin xyz="0 0 -0.5" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <!-- <limit lower="0" upper="2.62"/> -->
+  </joint>
+
+</robot>
