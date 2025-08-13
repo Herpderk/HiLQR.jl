@@ -1,40 +1,37 @@
 """
-    SaltationMatrix(flowI, flowJ, reset, guard)
+    SaltationMatrix(flowI, flowJ, guard, reset)
 
-Derives the saltation matrix function for a given hybrid transition. Assumes the following function arguments: `flow(x, u)`, `reset(x)`, and `guard(x, u)`.
+Derives the saltation matrix function for a given hybrid transition. Assumes the following function arguments: `flow(x, u)`, `guard(x)`, and `reset(x)`.
 """
 struct SaltationMatrix
     flowI::Function
     flowJ::Function
-    reset::Function
     guard::Function
+    reset::Function
     ẋI::Vector{<:DiffFloat64}
     ẋJ::Vector{<:DiffFloat64}
-    xJ::Vector{<:DiffFloat64}
     ∇g::Vector{<:DiffFloat64}
     ∇R::Matrix{<:DiffFloat64}
     xtmp::Vector{<:DiffFloat64}
     function SaltationMatrix(
         flowI::Function,
         flowJ::Function,
-        reset::Function,
         guard::Function,
+        reset::Function,
         nx::Int
     )::SaltationMatrix
         ẋI = zeros(nx)
         ẋJ = zeros(nx)
-        xJ = zeros(nx)
         ∇g = zeros(nx)
         ∇R = zeros(nx, nx)
         xtmp = zeros(nx)
         return new(
             flowI,
             flowJ,
-            reset,
             guard,
+            reset,
             ẋI,
             ẋJ,
-            xJ,
             ∇g,
             ∇R,
             xtmp
@@ -54,10 +51,9 @@ function (trn_cache::SaltationMatrix)(
 )::Nothing
     # Buffer arrays to be used for saltation matrix computation
     BLAS.copy!(trn_cache.ẋI, trn_cache.flowI(x, u))
-    BLAS.copy!(trn_cache.ẋJ, trn_cache.flowJ(x, u))
-    BLAS.copy!(trn_cache.xJ, trn_cache.reset(x))
-    ForwardDiff.gradient!(trn_cache.∇g, δx -> trn_cache.guard(δx, u), x)
-    ForwardDiff.jacobian!(trn_cache.∇R, trn_cache.reset, trn_cache.xtmp, x)
+    BLAS.copy!(trn_cache.ẋJ, trn_cache.flowJ(trn_cache.reset(x), u))
+    ForwardDiff.gradient!(trn_cache.∇g, δx -> trn_cache.guard(δx), x)
+    ForwardDiff.jacobian!(trn_cache.∇R, trn_cache.reset, x)
 
     # Ξ = ∇R + (ẋJ - ∇R*ẋI) * ∇g' / (∇g'*ẋI)
     # (ẋJ - ∇R*ẋI) * ∇g'
@@ -66,7 +62,7 @@ function (trn_cache::SaltationMatrix)(
     mul!(Ξ, trn_cache.xtmp, trn_cache.∇g')
 
     # ... / ∇g'*ẋI
-    rdiv!(Ξ, trn_cache.∇g' * ẋI)
+    rdiv!(Ξ, trn_cache.∇g' *trn_cache. ẋI)
 
     # ∇R + ...
     axpy!(1.0, trn_cache.∇R, Ξ)
@@ -75,27 +71,27 @@ end
 
 
 """
-    Transition(flowI, flowJ, reset, guard)
+    Transition(flowI, flowJ, guard, reset)
 
-Contains all hybrid system objects pertaining to a hybrid transition. Assumes the following function arguments: `flow(ẋ, x, u)`, `reset(xJ, x)`, and `guard(x, u)`.
+Contains all hybrid system objects pertaining to a hybrid transition. Assumes the following function arguments: `flow(x, u)`, `reset(x)`, and `guard(x)`.
 """
 struct Transition
     flowI::Function
     flowJ::Function
-    reset::Function
     guard::Function
-    saltation::SaltationMatrix
+    reset::Function
+    saltationmatrix!::SaltationMatrix
 end
 
 function Transition(
     flowI::Function,
     flowJ::Function,
-    reset::Function,
     guard::Function,
+    reset::Function,
     nx::Int
 )::Transition
-    saltation = SaltationMatrix(flowI, flowJ, reset, guard, nx)
-    return Transition(flowI, flowJ, reset, guard, saltation)
+    saltationmatrix! = SaltationMatrix(flowI, flowJ, guard, reset, nx)
+    return Transition(flowI, flowJ, guard, reset, saltationmatrix!)
 end
 
 # Equality function for Transition
@@ -103,8 +99,8 @@ function ==(a::Transition, b::Transition)::Bool
     return (
         a.flowI === b.flowI &&
         a.flowJ === b.flowJ &&
-        a.reset === b.reset &&
-        a.guard === b.guard
+        a.guard === b.guard &&
+        a.reset === b.reset
     )
 end
 
@@ -112,8 +108,8 @@ end
 function hash(trn::Transition, h::UInt)
     h = hash(trn.flowI, h)
     h ⊻= hash(trn.flowJ, h)
-    h ⊻= hash(trn.reset, h)
     h ⊻= hash(trn.guard, h)
+    h ⊻= hash(trn.reset, h)
     return h
 end
 
@@ -135,33 +131,16 @@ end
 
 
 """
-    add_transition(modeI, modeJ, transition)
+    add_transition!(modeI, modeJ, transition)
 
 Adds a given transition and adjacent mode J to the feasible transition dictionary of mode I.
 """
-function add_transition(
+function add_transition!(
     modeI::HybridMode,
     modeJ::HybridMode,
     transition::Transition
 )::Nothing
     modeI.transitions[transition] = modeJ
-    return
-end
-
-"""
-    add_transition!(modeI, modeJ, guard, reset)
-
-Constructs a transition using the given guard, reset, and modes and adds it to the feasible transition dictionary of modeI.
-"""
-function add_transition(
-    modeI::HybridMode,
-    modeJ::HybridMode,
-    reset::Function,
-    guard::Function,
-    nx::Int
-)::Nothing
-    transition = Transition(modeI.flow, modeJ.flow, reset, guard, nx)
-    add_transition!(modeI, modeJ, transition)
     return
 end
 

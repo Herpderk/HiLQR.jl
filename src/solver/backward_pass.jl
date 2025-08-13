@@ -81,7 +81,7 @@ function expand_F!(
         if trn_sym != NULL_TRANSITION
             # Get saltation matrix
             trn = params.bwd_sys.transitions[trn_sym]
-            trn.saltation!(tmp.xx1, x, u)
+            trn.saltationmatrix!(tmp.xx1, x, u)
 
             # Get hybrid dynamics jacobian wrt x: Ξ*Fx
             ForwardDiff.jacobian!(
@@ -100,7 +100,6 @@ function expand_F!(
             mul!(F.u, tmp.xx1, tmp.xu)
         else
             # Get dynamics jacobian wrt x
-            #copy!(tmp.x_dual, x)
             ForwardDiff.jacobian!(
                 F.x,
                 δx -> rk4(δx, u, params.Δt, mode.flow),
@@ -115,17 +114,15 @@ function expand_F!(
         end
     else
         # Get dynamics jacobian wrt x
-        #copy!(tmp.x_dual, x)
         ForwardDiff.jacobian!(
             F.x,
-            δx -> rk4(x1, δx, u, params.Δt, params.bwd_sys),
+            δx -> rk4(δx, u, params.Δt, params.bwd_sys),
             x
         )
         # Get dynamics jacobian wrt u
         ForwardDiff.jacobian!(
             F.u,
             δu -> rk4(x, δu, params.Δt, params.bwd_sys),
-            tmp.x_dual,
             u
         )
     end

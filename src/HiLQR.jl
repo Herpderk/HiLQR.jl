@@ -18,6 +18,7 @@ import Base: ==, hash
 export
         HybridMode,
         Transition,
+        add_transition!,
         HybridSystem,
         ProblemParameters,
         Solution,

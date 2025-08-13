@@ -37,8 +37,7 @@ function nonlinear_rollout!(
         Rflag = false
         @inbounds for (trn, mJ) in fwd.modes[k].transitions
             if trn.guard(fwd.xs[k+1]) <= 0.0
-                BLAS.copy!(tmp.x, fwd.xs[k+1])
-                trn.reset!(fwd.xs[k+1], tmp.x)
+                BLAS.copy!(fwd.xs[k+1], trn.reset(fwd.xs[k+1]))
                 fwd.trn_syms[k] = params.rev_trns_dict[trn]
                 fwd.modes[k+1] = mJ
                 Rflag = true

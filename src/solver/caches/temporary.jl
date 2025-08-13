@@ -11,8 +11,6 @@ mutable struct TemporaryCache
     xu::Matrix{Float64}
     ux::Matrix{Float64}
 
-    x_dual::AbstractVector
-
     xx_hess::DiffResults.DiffResult
     uu_hess::DiffResults.DiffResult
 end
@@ -30,8 +28,6 @@ function TemporaryCache(
     xu = zeros(nx, nu)
     ux = zeros(nu, nx)
 
-    x_dual = zeros(nx)
-
     xx_hess = DiffResults.HessianResult(zeros(nx))
     uu_hess = DiffResults.HessianResult(zeros(nu))
 
@@ -43,7 +39,6 @@ function TemporaryCache(
         uu,
         xu,
         ux,
-        x_dual,
         xx_hess,
         uu_hess
     )
